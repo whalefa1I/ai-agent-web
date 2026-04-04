@@ -25,7 +25,7 @@
             <input
               v-model="serverUrl"
               type="text"
-              placeholder="http://localhost:8080"
+              placeholder="https://your-server.railway.app"
               class="w-full rounded-xl border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
             />
             <p class="text-xs text-gray-500 mt-1">WebSocket 和 HTTP API 的基础地址</p>
@@ -43,11 +43,14 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">模型名称</label>
             <select v-model="modelName"
                     class="w-full rounded-xl border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all">
-              <option value="gpt-4o-mini">GPT-4o Mini</option>
-              <option value="gpt-4o">GPT-4o</option>
-              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-              <option value="claude-opus-4-6">Claude Opus 4.6</option>
+              <option value="kimi-k2">Kimi K2</option>
+              <option value="kimi-k1.5">Kimi K1.5</option>
+              <option value="qwen-plus">Qwen Plus</option>
+              <option value="qwen-max">Qwen Max</option>
+              <option value="glm-4">GLM-4</option>
+              <option value="glm-4-flash">GLM-4 Flash</option>
             </select>
+            <p class="text-xs text-gray-500 mt-1">阿里云百炼可用模型</p>
           </div>
         </div>
       </section>
@@ -78,7 +81,7 @@
         </div>
         <div class="p-4">
           <div class="text-sm text-gray-600">
-            <p class="mb-2"><strong>Happy AI Client</strong> - 智能助手前端</p>
+            <p class="mb-2"><strong>ai-agent-web</strong> - AI Agent 前端</p>
             <p class="text-xs text-gray-500">版本：1.0.0</p>
             <p class="text-xs text-gray-500 mt-2">基于 Spring Boot + Vue 3 构建</p>
           </div>
@@ -95,17 +98,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 // 配置状态
 const serverUrl = ref('http://localhost:8080')
-const modelName = ref('gpt-4o-mini')
+const modelName = ref('kimi-k2')
 const autoAllowReadOnly = ref(true)
 const autoAllowFileOps = ref(false)
 
+// 本地存储 Key
+const STORAGE_KEY = 'ai-agent-settings'
+
+// 加载设置
+onMounted(() => {
+  const saved = localStorage.getItem(STORAGE_KEY)
+  if (saved) {
+    try {
+      const settings = JSON.parse(saved)
+      if (settings.serverUrl) serverUrl.value = settings.serverUrl
+      if (settings.modelName) modelName.value = settings.modelName
+      if (typeof settings.autoAllowReadOnly === 'boolean') autoAllowReadOnly.value = settings.autoAllowReadOnly
+      if (typeof settings.autoAllowFileOps === 'boolean') autoAllowFileOps.value = settings.autoAllowFileOps
+    } catch (e) {
+      console.error('加载设置失败:', e)
+    }
+  }
+})
+
 // 保存设置
 const saveSettings = () => {
-  // TODO: 保存到 localStorage 或发送到后端
-  alert('设置已保存')
+  const settings = {
+    serverUrl: serverUrl.value,
+    modelName: modelName.value,
+    autoAllowReadOnly: autoAllowReadOnly.value,
+    autoAllowFileOps: autoAllowFileOps.value
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+  alert('设置已保存，刷新页面后生效')
 }
 </script>
