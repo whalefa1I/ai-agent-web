@@ -76,10 +76,13 @@ const autoResize = () => {
 // 发送消息
 const sendMessage = async () => {
   const content = input.value.trim()
+  console.log('[InputBar] sendMessage:', content)
   if (!content || isThinking.value) return
 
   await chatStore.sendMessage(content)
+  console.log('[InputBar] 清空输入框')
   input.value = ''
+  console.log('[InputBar] 输入框当前值:', input.value)
 
   nextTick(() => {
     if (textareaRef.value) {
