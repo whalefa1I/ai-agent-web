@@ -227,3 +227,18 @@ export class WebSocketService {
 
 // 导出单例
 export const wsService = new WebSocketService()
+
+// 重新连接（带新地址）
+export function reconnectWebSocket(baseUrl?: string): WebSocketService {
+  const newService = new WebSocketService(baseUrl)
+  // 复制旧服务的事件处理器
+  wsService.handlers.forEach((handlers, type) => {
+    handlers.forEach(handler => {
+      newService.on(type as any, handler as any)
+    })
+  })
+  // 断开旧连接
+  wsService.disconnect()
+  // 返回新服务
+  return newService
+}

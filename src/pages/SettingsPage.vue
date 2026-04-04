@@ -99,6 +99,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { wsService } from '@/services/websocket'
+
+const router = useRouter()
 
 // 配置状态
 const serverUrl = ref('http://localhost:8080')
@@ -125,7 +129,7 @@ onMounted(() => {
   }
 })
 
-// 保存设置
+// 保存设置并重新连接
 const saveSettings = () => {
   const settings = {
     serverUrl: serverUrl.value,
@@ -134,6 +138,14 @@ const saveSettings = () => {
     autoAllowFileOps: autoAllowFileOps.value
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-  alert('设置已保存，刷新页面后生效')
+
+  // 断开旧连接并重新连接
+  wsService.disconnect()
+  setTimeout(() => {
+    wsService.connect().catch(console.error)
+  }, 500)
+
+  alert('设置已保存')
+  router.push('/chat')
 }
 </script>

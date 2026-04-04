@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { wsService } from '@/services/websocket'
+import { wsService, reconnectWebSocket } from '@/services/websocket'
 import type {
   ChatMessageDTO,
   ToolCallMessage,
@@ -176,6 +176,67 @@ export const useChatStore = defineStore('chat', () => {
   // 断开连接
   function disconnect() {
     wsService.disconnect()
+  }
+
+  // 使用设置的服务器地址连接
+  function connectWithSettings() {
+    const saved = localStorage.getItem('ai-agent-settings')
+    let serverUrl = ''
+
+    if (saved) {
+      try {
+        const settings = JSON.parse(saved)
+        serverUrl = settings.serverUrl || ''
+      } catch (e) {
+        console.error('加载设置失败:', e)
+      }
+    }
+
+    // 重新创建 WebSocket 服务实例
+    const newService = reconnectWebSocket(serverUrl)
+
+    // 重新注册事件监听器
+    newService.on('CONNECTED', (msg) => {
+      console.log('WebSocket 已连接，会话 ID:', (msg as any).sessionId)
+    })
+    newService.on('RESPONSE_START', () => {
+      isThinking.value = true
+      currentResponse.value = ''
+    })
+    newService.on('TEXT_DELTA', (msg) => {
+      const deltaMsg = msg as any
+      currentResponse.value += deltaMsg.delta
+      updateAssistantMessage(deltaMsg.delta)
+    })
+    newService.on('TOOL_CALL', (msg) => {
+      addToolCall(msg as ToolCallMessage)
+    })
+    newService.on('PERMISSION_REQUEST', (msg) => {
+      setPermissionRequest(msg as PermissionRequestMessage)
+    })
+    newService.on('RESPONSE_COMPLETE', (msg) => {
+      isThinking.value = false
+      clearToolCalls()
+    })
+    newService.on('ERROR', (msg) => {
+      console.error('服务器错误:', msg)
+      isThinking.value = false
+    })
+    newService.on('HISTORY', (msg) => {
+      messages.value = (msg as any).messages || []
+    })
+    newService.on('STATS', (msg) => {
+      updateStats((msg as any).stats)
+    })
+
+    // 替换全局 wsService 引用（通过修改原型）
+    Object.setPrototypeOf(wsService, newService)
+    Object.assign(wsService, newService)
+
+    // 发起连接
+    wsService.connect().catch(err => {
+      console.error('WebSocket 连接失败:', err)
+    })
   }
 
   return {
