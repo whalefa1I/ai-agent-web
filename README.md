@@ -86,6 +86,27 @@ bun run preview
 - 开发环境：`ws://localhost:8080/ws`
 - 生产环境：在设置页面配置
 
+## 部署
+
+### Vercel 部署
+
+1. 安装 Vercel CLI：
+```bash
+npm i -g vercel
+```
+
+2. 部署到 Vercel：
+```bash
+vercel
+```
+
+3. 生产环境部署：
+```bash
+vercel --prod
+```
+
+部署后可以在 Vercel 仪表盘配置环境变量 `VITE_API_BASE_URL` 指向你的后端地址。
+
 ## 许可证
 
 MIT
