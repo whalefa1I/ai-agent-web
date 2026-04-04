@@ -64,8 +64,7 @@
               </optgroup>
               <!-- 月之暗面 Kimi 系列 -->
               <optgroup label="月之暗面 (Kimi)">
-                <option value="kimi-k2">Kimi K2</option>
-                <option value="kimi-k1.5">Kimi K1.5</option>
+                <option value="kimi-k2.5">Kimi K2.5</option>
               </optgroup>
               <!-- MiniMax 系列 -->
               <optgroup label="MiniMax">
