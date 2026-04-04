@@ -58,10 +58,18 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 更新助手消息（流式）
-  function updateAssistantMessage(content: string) {
+  function updateAssistantMessage(content: string, replace: boolean = false) {
     const lastMessage = messages.value[messages.value.length - 1]
     if (lastMessage && lastMessage.type === 'ASSISTANT') {
-      lastMessage.content += content
+      if (replace) {
+        // 替换为完整内容（用于 RESPONSE_COMPLETE）
+        lastMessage.content = content
+      } else {
+        // 累加内容（用于 TEXT_DELTA）
+        lastMessage.content += content
+      }
+      // 强制触发响应式更新
+      messages.value = [...messages.value]
     } else {
       addAssistantMessage(content)
     }
@@ -185,8 +193,8 @@ export const useChatStore = defineStore('chat', () => {
                   addAssistantMessage(data.content)
                   hasAssistantMessage = true
                 } else {
-                  // 前面已有消息（RESPONSE_START 创建了空消息），更新为完整内容
-                  updateAssistantMessage(data.content)
+                  // 前面已有消息（RESPONSE_START 创建了空消息），替换为完整内容
+                  updateAssistantMessage(data.content, true)
                 }
               }
             } else if (data.type === 'TOOL_CALL') {
