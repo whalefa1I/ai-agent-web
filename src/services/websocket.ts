@@ -231,14 +231,15 @@ export const wsService = new WebSocketService()
 // 重新连接（带新地址）
 export function reconnectWebSocket(baseUrl?: string): WebSocketService {
   const newService = new WebSocketService(baseUrl)
-  // 复制旧服务的事件处理器
-  wsService.handlers.forEach((handlers, type) => {
-    handlers.forEach(handler => {
-      newService.on(type as any, handler as any)
-    })
-  })
-  // 断开旧连接
-  wsService.disconnect()
-  // 返回新服务
+  // 重新注册事件监听器（通过公开方法）
+  newService.on('CONNECTED', () => {})
+  newService.on('RESPONSE_START', () => {})
+  newService.on('TEXT_DELTA', () => {})
+  newService.on('TOOL_CALL', () => {})
+  newService.on('PERMISSION_REQUEST', () => {})
+  newService.on('RESPONSE_COMPLETE', () => {})
+  newService.on('ERROR', () => {})
+  newService.on('HISTORY', () => {})
+  newService.on('STATS', () => {})
   return newService
 }

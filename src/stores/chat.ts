@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { wsService, reconnectWebSocket } from '@/services/websocket'
+import { wsService, WebSocketService } from '@/services/websocket'
 import type {
   ChatMessageDTO,
   ToolCallMessage,
@@ -192,8 +192,11 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
 
+    // 断开旧连接
+    wsService.disconnect()
+
     // 重新创建 WebSocket 服务实例
-    const newService = reconnectWebSocket(serverUrl)
+    const newService = new WebSocketService(serverUrl)
 
     // 重新注册事件监听器
     newService.on('CONNECTED', (msg) => {
@@ -229,8 +232,7 @@ export const useChatStore = defineStore('chat', () => {
       updateStats((msg as any).stats)
     })
 
-    // 替换全局 wsService 引用（通过修改原型）
-    Object.setPrototypeOf(wsService, newService)
+    // 替换全局 wsService 的引用
     Object.assign(wsService, newService)
 
     // 发起连接
@@ -264,6 +266,7 @@ export const useChatStore = defineStore('chat', () => {
     respondPermission,
     initWebSocket,
     connect,
-    disconnect
+    disconnect,
+    connectWithSettings
   }
 })
