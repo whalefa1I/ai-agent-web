@@ -178,9 +178,16 @@ export const useChatStore = defineStore('chat', () => {
               // 响应完成 - 如果有完整内容，确保显示
               isThinking.value = false
               clearToolCalls()
-              // 如果后端返回了完整 content 但前面没有 TEXT_DELTA，确保消息被添加
-              if (data.content && !hasAssistantMessage) {
-                addAssistantMessage(data.content)
+              // 如果后端返回了完整 content
+              if (data.content) {
+                if (!hasAssistantMessage) {
+                  // 前面没有消息，创建新消息
+                  addAssistantMessage(data.content)
+                  hasAssistantMessage = true
+                } else {
+                  // 前面已有消息（RESPONSE_START 创建了空消息），更新为完整内容
+                  updateAssistantMessage(data.content)
+                }
               }
             } else if (data.type === 'TOOL_CALL') {
               addToolCall({
