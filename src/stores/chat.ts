@@ -166,8 +166,11 @@ export const useChatStore = defineStore('chat', () => {
 
         for (const line of lines) {
           console.log('[chatStore] 处理行:', line)
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6))
+          // 处理 SSE data: 行（兼容有空格和没有空格的情况）
+          if (line.startsWith('data:')) {
+            const jsonStr = line.slice(5).trim()  // 去掉 'data:' 并去除前后空格
+            if (!jsonStr) continue  // 跳过空的 data: 行
+            const data = JSON.parse(jsonStr)
             console.log('SSE 事件:', data.type, data)
 
             if (data.type === 'TEXT_DELTA') {
