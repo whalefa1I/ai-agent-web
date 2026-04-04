@@ -138,8 +138,14 @@ export const useChatStore = defineStore('chat', () => {
       let buffer = ''
       let hasAssistantMessage = false
 
+      console.log('[SSE] 开始接收流...')
+      let chunkCount = 0
+      const startTime = Date.now()
+
       while (true) {
         const { done, value } = await reader.read()
+        chunkCount++
+        console.log(`[SSE] 第 ${chunkCount} 块数据，done=${done}, size=${value?.length} bytes, 耗时=${Date.now() - startTime}ms`)
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
@@ -152,6 +158,7 @@ export const useChatStore = defineStore('chat', () => {
             const jsonStr = line.slice(5).trim()  // 去掉 'data:' 并去除前后空格
             if (!jsonStr) continue  // 跳过空的 data: 行
             const data = JSON.parse(jsonStr)
+            console.log('[SSE] 事件:', data.type, data.type === 'RESPONSE_COMPLETE' ? '(content length=' + (data.content?.length || 0) + ')' : '')
 
             if (data.type === 'TEXT_DELTA') {
               // 文本增量
