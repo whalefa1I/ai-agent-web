@@ -130,6 +130,7 @@ export const useChatStore = defineStore('chat', () => {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      let hasAssistantMessage = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -142,12 +143,31 @@ export const useChatStore = defineStore('chat', () => {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = JSON.parse(line.slice(6))
+            console.log('SSE 事件:', data.type, data)
+
             if (data.type === 'TEXT_DELTA') {
+              // 文本增量
+              if (!hasAssistantMessage) {
+                addAssistantMessage(data.delta)
+                hasAssistantMessage = true
+              } else {
+                updateAssistantMessage(data.delta)
+              }
               currentResponse.value += data.delta
-              updateAssistantMessage(data.delta)
+            } else if (data.type === 'RESPONSE_START') {
+              // 响应开始 - 创建空消息
+              if (!hasAssistantMessage) {
+                addAssistantMessage('')
+                hasAssistantMessage = true
+              }
             } else if (data.type === 'RESPONSE_COMPLETE') {
+              // 响应完成 - 如果有完整内容，确保显示
               isThinking.value = false
               clearToolCalls()
+              // 如果后端返回了完整 content 但前面没有 TEXT_DELTA，确保消息被添加
+              if (data.content && !hasAssistantMessage) {
+                addAssistantMessage(data.content)
+              }
             } else if (data.type === 'TOOL_CALL') {
               addToolCall({
                 toolCallId: data.toolCallId || `tool_${Date.now()}`,
@@ -158,6 +178,9 @@ export const useChatStore = defineStore('chat', () => {
                 status: 'started',
                 type: 'TOOL_CALL'
               })
+            } else if (data.type === 'ERROR') {
+              addAssistantMessage(`错误：${data.message || '未知错误'}`)
+              isThinking.value = false
             }
           }
         }
