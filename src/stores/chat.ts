@@ -22,6 +22,17 @@ export const useChatStore = defineStore('chat', () => {
   const hasPendingPermission = computed(() => pendingPermission.value !== null)
   const hasPendingToolCalls = computed(() => pendingToolCalls.value.length > 0)
 
+  // 会话 ID 和用户 ID（用于 ToolState）
+  const sessionId = computed(() => {
+    // 从 localStorage 获取会话 ID
+    return localStorage.getItem('ai-agent-session-id') || `session_${Date.now()}`
+  })
+
+  const userId = computed(() => {
+    // 从 localStorage 获取用户 ID
+    return localStorage.getItem('ai-agent-user-id') || `user_${Date.now()}`
+  })
+
   // 初始化服务器地址
   function initServerUrl() {
     const saved = localStorage.getItem('ai-agent-settings')
@@ -259,6 +270,8 @@ export const useChatStore = defineStore('chat', () => {
     // 计算属性
     hasPendingPermission,
     hasPendingToolCalls,
+    sessionId,
+    userId,
     // 方法
     addUserMessage,
     addAssistantMessage,

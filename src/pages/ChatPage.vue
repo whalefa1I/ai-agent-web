@@ -22,6 +22,12 @@
           <span class="text-xs text-gray-600">{{ serverUrl ? 'HTTP API 已就绪' : '未配置' }}</span>
         </div>
 
+        <!-- 工具状态切换按钮 -->
+        <button @click="showToolState = !showToolState"
+                class="px-3 py-1.5 text-xs rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors">
+          {{ showToolState ? '隐藏工具状态' : '工具状态' }}
+        </button>
+
         <!-- 设置按钮 -->
         <button @click="$router.push('/settings')"
                 class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -34,22 +40,43 @@
       </div>
     </header>
 
-    <!-- 消息列表 -->
-    <MessageList class="flex-1 overflow-hidden" />
+    <!-- 主内容区 -->
+    <div class="flex-1 flex overflow-hidden">
+      <!-- 聊天区域 -->
+      <div class="flex-1 flex flex-col min-w-0">
+        <!-- 消息列表 -->
+        <MessageList class="flex-1 overflow-hidden" />
 
-    <!-- 输入框 -->
-    <InputBar />
+        <!-- 输入框 -->
+        <InputBar />
+      </div>
+
+      <!-- 工具状态侧边栏 -->
+      <div v-if="showToolState" class="tool-state-sidebar w-80 border-l border-gray-200 bg-white overflow-y-auto">
+        <ToolStateDisplay
+          v-if="currentSessionId && currentUserId"
+          :session-id="currentSessionId"
+          :user-id="currentUserId"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import MessageList from '@/components/MessageList.vue'
 import InputBar from '@/components/InputBar.vue'
+import ToolStateDisplay from '@/components/ToolStateDisplay.vue'
 
 const chatStore = useChatStore()
 const serverUrl = computed(() => chatStore.serverUrl)
+const showToolState = ref(false)
+
+// 获取当前会话 ID 和用户 ID
+const currentSessionId = computed(() => chatStore.sessionId)
+const currentUserId = computed(() => chatStore.userId)
 
 // 组件挂载时初始化
 onMounted(() => {
