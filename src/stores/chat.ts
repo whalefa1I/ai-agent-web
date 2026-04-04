@@ -59,7 +59,9 @@ export const useChatStore = defineStore('chat', () => {
 
   // 更新助手消息（流式）
   function updateAssistantMessage(content: string, replace: boolean = false) {
+    console.log('[chatStore] updateAssistantMessage called:', content.substring(0, 50), 'replace:', replace)
     const lastMessage = messages.value[messages.value.length - 1]
+    console.log('[chatStore] lastMessage:', lastMessage)
     if (lastMessage && lastMessage.type === 'ASSISTANT') {
       if (replace) {
         // 替换为完整内容（用于 RESPONSE_COMPLETE）
@@ -70,6 +72,7 @@ export const useChatStore = defineStore('chat', () => {
       }
       // 强制触发响应式更新
       messages.value = [...messages.value]
+      console.log('[chatStore] messages after update:', messages.value.length, 'last content:', lastMessage.content.substring(0, 50))
     } else {
       addAssistantMessage(content)
     }
