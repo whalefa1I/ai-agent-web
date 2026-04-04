@@ -59,9 +59,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // 更新助手消息（流式）
   function updateAssistantMessage(content: string, replace: boolean = false) {
-    console.log('[chatStore] updateAssistantMessage called:', content.substring(0, 50), 'replace:', replace)
     const lastMessage = messages.value[messages.value.length - 1]
-    console.log('[chatStore] lastMessage:', lastMessage)
     if (lastMessage && lastMessage.type === 'ASSISTANT') {
       if (replace) {
         // 替换为完整内容（用于 RESPONSE_COMPLETE）
@@ -72,7 +70,6 @@ export const useChatStore = defineStore('chat', () => {
       }
       // 强制触发响应式更新
       messages.value = [...messages.value]
-      console.log('[chatStore] messages after update:', messages.value.length, 'last content:', lastMessage.content.substring(0, 50))
     } else {
       addAssistantMessage(content)
     }
@@ -118,13 +115,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // 发送消息（HTTP API）
   async function sendMessage(content: string) {
-    console.log('[chatStore] sendMessage called with:', content)
-    console.log('[chatStore] serverUrl:', serverUrl.value)
-
-    if (!content.trim()) {
-      console.warn('[chatStore] 空消息，忽略')
-      return
-    }
+    if (!content.trim()) return
 
     addUserMessage(content)
     isThinking.value = true
@@ -132,16 +123,12 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       // 使用流式 SSE 方式
-      const controller = new AbortController()
       const url = `${serverUrl.value}/api/v2/chat/stream?message=${encodeURIComponent(content)}`
-      console.log('[chatStore] 请求 URL:', url)
 
       const response = await fetch(url, {
         method: 'GET',
         headers: { 'Accept': 'text/event-stream' }
       })
-
-      console.log('[chatStore] 响应状态:', response.status, response.ok)
 
       if (!response.body) {
         throw new Error('响应体为空')
@@ -152,20 +139,15 @@ export const useChatStore = defineStore('chat', () => {
       let buffer = ''
       let hasAssistantMessage = false
 
-      console.log('[chatStore] 开始读取流...')
-
       while (true) {
         const { done, value } = await reader.read()
-        console.log('[chatStore] read result: done=', done, 'value length=', value?.length)
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
-        console.log('[chatStore] 解析行数:', lines.length, 'buffer:', buffer)
 
         for (const line of lines) {
-          console.log('[chatStore] 处理行:', line)
           // 处理 SSE data: 行（兼容有空格和没有空格的情况）
           if (line.startsWith('data:')) {
             const jsonStr = line.slice(5).trim()  // 去掉 'data:' 并去除前后空格
