@@ -80,15 +80,16 @@ const sendMessage = async () => {
   if (!content || isThinking.value) return
 
   await chatStore.sendMessage(content)
-  console.log('[InputBar] 清空输入框')
+  console.log('[InputBar] 准备清空输入框')
+
+  await nextTick()  // 等待上一轮渲染完成
   input.value = ''
   console.log('[InputBar] 输入框当前值:', input.value)
 
-  nextTick(() => {
-    if (textareaRef.value) {
-      textareaRef.value.style.height = 'auto'
-    }
-  })
+  await nextTick()  // 等待输入框清空渲染完成
+  if (textareaRef.value) {
+    textareaRef.value.style.height = 'auto'
+  }
 }
 </script>
 
