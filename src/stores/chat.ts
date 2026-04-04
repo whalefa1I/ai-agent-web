@@ -107,7 +107,13 @@ export const useChatStore = defineStore('chat', () => {
 
   // 发送消息（HTTP API）
   async function sendMessage(content: string) {
-    if (!content.trim()) return
+    console.log('[chatStore] sendMessage called with:', content)
+    console.log('[chatStore] serverUrl:', serverUrl.value)
+
+    if (!content.trim()) {
+      console.warn('[chatStore] 空消息，忽略')
+      return
+    }
 
     addUserMessage(content)
     isThinking.value = true
@@ -117,11 +123,14 @@ export const useChatStore = defineStore('chat', () => {
       // 使用流式 SSE 方式
       const controller = new AbortController()
       const url = `${serverUrl.value}/api/v2/chat/stream?message=${encodeURIComponent(content)}`
+      console.log('[chatStore] 请求 URL:', url)
 
       const response = await fetch(url, {
         method: 'GET',
         headers: { 'Accept': 'text/event-stream' }
       })
+
+      console.log('[chatStore] 响应状态:', response.status, response.ok)
 
       if (!response.body) {
         throw new Error('响应体为空')
