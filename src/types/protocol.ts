@@ -1,11 +1,3 @@
-/// <reference types="vite/client" />
-
-declare module '*.vue' {
-  import type { DefineComponent } from 'vue'
-  const component: DefineComponent<{}, {}, any>
-  export default component
-}
-
 // WebSocket 协议类型
 export interface WSProtocol {
   PROTOCOL_VERSION: string

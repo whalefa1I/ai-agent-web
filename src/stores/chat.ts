@@ -123,8 +123,9 @@ export const useChatStore = defineStore('chat', () => {
 
     // 监听文本增量
     wsService.on('TEXT_DELTA', (msg) => {
-      currentResponse.value += msg.delta
-      updateAssistantMessage(msg.delta)
+      const deltaMsg = msg as any
+      currentResponse.value += deltaMsg.delta
+      updateAssistantMessage(deltaMsg.delta)
     })
 
     // 监听工具调用

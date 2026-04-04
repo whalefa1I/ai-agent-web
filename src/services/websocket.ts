@@ -131,8 +131,10 @@ export class WebSocketService {
   getHistory(limit: number = 20): void {
     this.send({
       type: 'GET_HISTORY',
+      requestId: `req_${Date.now()}`,
+      timestamp: new Date().toISOString(),
       limit
-    })
+    } as ClientMessage & { limit: number })
   }
 
   // 获取统计信息
@@ -178,7 +180,7 @@ export class WebSocketService {
     }
 
     // 全局日志
-    if (import.meta.env.DEV) {
+    if ((import.meta as any).env?.DEV) {
       console.log('[WS] 收到消息:', message.type, message)
     }
   }
