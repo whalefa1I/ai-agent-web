@@ -43,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { wsService } from '@/services/websocket'
 import MessageList from '@/components/MessageList.vue'
@@ -51,6 +51,11 @@ import InputBar from '@/components/InputBar.vue'
 
 const chatStore = useChatStore()
 const wsConnected = computed(() => wsService.getStatus() === 'connected')
+
+// 组件挂载时初始化并连接 WebSocket
+onMounted(() => {
+  chatStore.initWebSocket()
+})
 </script>
 
 <style scoped>

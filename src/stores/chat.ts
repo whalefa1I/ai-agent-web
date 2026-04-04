@@ -159,6 +159,23 @@ export const useChatStore = defineStore('chat', () => {
     wsService.on('STATS', (msg) => {
       updateStats((msg as any).stats)
     })
+
+    // 主动连接 WebSocket
+    wsService.connect().catch(err => {
+      console.error('WebSocket 连接失败:', err)
+    })
+  }
+
+  // 手动连接 WebSocket
+  function connect() {
+    wsService.connect().catch(err => {
+      console.error('WebSocket 连接失败:', err)
+    })
+  }
+
+  // 断开连接
+  function disconnect() {
+    wsService.disconnect()
   }
 
   return {
@@ -184,6 +201,8 @@ export const useChatStore = defineStore('chat', () => {
     updateStats,
     sendMessage,
     respondPermission,
-    initWebSocket
+    initWebSocket,
+    connect,
+    disconnect
   }
 })
