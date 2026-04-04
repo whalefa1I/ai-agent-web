@@ -152,7 +152,6 @@ export const useChatStore = defineStore('chat', () => {
             const jsonStr = line.slice(5).trim()  // 去掉 'data:' 并去除前后空格
             if (!jsonStr) continue  // 跳过空的 data: 行
             const data = JSON.parse(jsonStr)
-            console.log('SSE 事件:', data.type, data)
 
             if (data.type === 'TEXT_DELTA') {
               // 文本增量
