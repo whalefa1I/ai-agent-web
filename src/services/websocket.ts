@@ -26,8 +26,18 @@ export class WebSocketService {
   constructor(baseUrl: string = '') {
     // 自动检测 WebSocket 地址
     if (!baseUrl) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      this.url = `${protocol}//${window.location.host}/ws/agent/web-token`
+      // 优先使用环境变量配置的服务器地址
+      const envServer = (import.meta as any).env?.VITE_SERVER_URL
+      if (envServer) {
+        this.url = envServer.replace('http:', 'ws:').replace('https:', 'wss:')
+        if (!this.url.endsWith('/ws/agent')) {
+          this.url = `${this.url.replace(/\/$/, '')}/ws/agent/web-token`
+        }
+      } else {
+        // 否则使用当前域名的 WebSocket
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        this.url = `${protocol}//${window.location.host}/ws/agent/web-token`
+      }
     } else {
       this.url = baseUrl.replace('http:', 'ws:').replace('https:', 'wss:')
       if (!this.url.endsWith('/ws/agent')) {
