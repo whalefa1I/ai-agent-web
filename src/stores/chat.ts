@@ -141,15 +141,20 @@ export const useChatStore = defineStore('chat', () => {
       let buffer = ''
       let hasAssistantMessage = false
 
+      console.log('[chatStore] 开始读取流...')
+
       while (true) {
         const { done, value } = await reader.read()
+        console.log('[chatStore] read result: done=', done, 'value length=', value?.length)
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
+        console.log('[chatStore] 解析行数:', lines.length, 'buffer:', buffer)
 
         for (const line of lines) {
+          console.log('[chatStore] 处理行:', line)
           if (line.startsWith('data: ')) {
             const data = JSON.parse(line.slice(6))
             console.log('SSE 事件:', data.type, data)
