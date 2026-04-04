@@ -76,20 +76,19 @@ const autoResize = () => {
 // 发送消息
 const sendMessage = async () => {
   const content = input.value.trim()
-  console.log('[InputBar] sendMessage:', content)
   if (!content || isThinking.value) return
 
-  await chatStore.sendMessage(content)
-  console.log('[InputBar] 准备清空输入框')
-
-  await nextTick()  // 等待上一轮渲染完成
+  // 先清空输入框，再发送消息（不等待响应）
   input.value = ''
-  console.log('[InputBar] 输入框当前值:', input.value)
-
-  await nextTick()  // 等待输入框清空渲染完成
+  await nextTick()
   if (textareaRef.value) {
     textareaRef.value.style.height = 'auto'
   }
+
+  // 异步发送消息，不阻塞 UI
+  chatStore.sendMessage(content).catch(err => {
+    console.error('发送失败:', err)
+  })
 }
 </script>
 
