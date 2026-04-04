@@ -18,8 +18,8 @@
         <!-- 连接状态 -->
         <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-gray-100">
           <div class="w-2 h-2 rounded-full"
-               :class="wsConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'"></div>
-          <span class="text-xs text-gray-600">{{ wsConnected ? '已连接' : '未连接' }}</span>
+               :class="serverUrl ? 'bg-green-500 animate-pulse' : 'bg-gray-400'"></div>
+          <span class="text-xs text-gray-600">{{ serverUrl ? 'HTTP API 已就绪' : '未配置' }}</span>
         </div>
 
         <!-- 设置按钮 -->
@@ -45,16 +45,17 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import { wsService } from '@/services/websocket'
 import MessageList from '@/components/MessageList.vue'
 import InputBar from '@/components/InputBar.vue'
 
 const chatStore = useChatStore()
-const wsConnected = computed(() => wsService.getStatus() === 'connected')
+const serverUrl = computed(() => chatStore.serverUrl)
 
-// 组件挂载时初始化并连接 WebSocket
+// 组件挂载时初始化
 onMounted(() => {
-  chatStore.connectWithSettings()
+  chatStore.initServerUrl()
+  chatStore.loadHistory()
+  chatStore.loadStats()
 })
 </script>
 

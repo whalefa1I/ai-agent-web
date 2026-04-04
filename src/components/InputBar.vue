@@ -74,11 +74,11 @@ const autoResize = () => {
 }
 
 // 发送消息
-const sendMessage = () => {
+const sendMessage = async () => {
   const content = input.value.trim()
   if (!content || isThinking.value) return
 
-  chatStore.sendMessage(content)
+  await chatStore.sendMessage(content)
   input.value = ''
 
   nextTick(() => {

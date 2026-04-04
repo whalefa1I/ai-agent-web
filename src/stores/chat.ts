@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { wsService, WebSocketService } from '@/services/websocket'
+import { httpApi } from '@/services/http'
 import type {
   ChatMessageDTO,
   ToolCallMessage,
@@ -16,10 +16,26 @@ export const useChatStore = defineStore('chat', () => {
   const stats = ref<SessionStats | null>(null)
   const isThinking = ref(false)
   const currentResponse = ref('')
+  const serverUrl = ref('')
 
   // 计算属性
   const hasPendingPermission = computed(() => pendingPermission.value !== null)
   const hasPendingToolCalls = computed(() => pendingToolCalls.value.length > 0)
+
+  // 初始化服务器地址
+  function initServerUrl() {
+    const saved = localStorage.getItem('ai-agent-settings')
+    if (saved) {
+      try {
+        const settings = JSON.parse(saved)
+        serverUrl.value = settings.serverUrl || 'https://ai-agent-server-production-d28a.up.railway.app'
+      } catch (e) {
+        serverUrl.value = 'https://ai-agent-server-production-d28a.up.railway.app'
+      }
+    } else {
+      serverUrl.value = 'https://ai-agent-server-production-d28a.up.railway.app'
+    }
+  }
 
   // 添加用户消息
   function addUserMessage(content: string) {
@@ -89,156 +105,108 @@ export const useChatStore = defineStore('chat', () => {
     stats.value = newStats
   }
 
-  // 发送消息
-  function sendMessage(content: string) {
+  // 发送消息（HTTP API）
+  async function sendMessage(content: string) {
     if (!content.trim()) return
 
     addUserMessage(content)
     isThinking.value = true
     currentResponse.value = ''
-    wsService.sendMessage(content)
+
+    try {
+      // 使用流式 SSE 方式
+      const controller = new AbortController()
+      const url = `${serverUrl.value}/api/v2/chat/stream?message=${encodeURIComponent(content)}`
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'text/event-stream' }
+      })
+
+      if (!response.body) {
+        throw new Error('响应体为空')
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6))
+            if (data.type === 'TEXT_DELTA') {
+              currentResponse.value += data.delta
+              updateAssistantMessage(data.delta)
+            } else if (data.type === 'RESPONSE_COMPLETE') {
+              isThinking.value = false
+              clearToolCalls()
+            } else if (data.type === 'TOOL_CALL') {
+              addToolCall({
+                toolCallId: data.toolCallId || `tool_${Date.now()}`,
+                toolName: data.toolName,
+                toolDisplayName: data.toolName,
+                icon: 'tool',
+                input: data.input,
+                status: 'started',
+                type: 'TOOL_CALL'
+              })
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('发送消息失败:', error)
+      isThinking.value = false
+      addAssistantMessage(`错误：${error instanceof Error ? error.message : '未知错误'}`)
+    }
   }
 
-  // 响应权限请求
-  function respondPermission(
+  // 响应权限请求（HTTP API）
+  async function respondPermission(
     requestId: string,
     choice: 'ALLOW_ONCE' | 'ALLOW_SESSION' | 'ALLOW_ALWAYS' | 'DENY'
   ) {
-    wsService.sendPermissionResponse(requestId, choice)
+    await fetch(`${serverUrl.value}/api/v2/permissions/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, choice })
+    })
     clearPermissionRequest()
   }
 
-  // 初始化 WebSocket 监听
-  function initWebSocket() {
-    // 监听连接确认
-    wsService.on('CONNECTED', (msg) => {
-      console.log('WebSocket 已连接，会话 ID:', (msg as any).sessionId)
-    })
-
-    // 监听响应开始
-    wsService.on('RESPONSE_START', () => {
-      isThinking.value = true
-      currentResponse.value = ''
-    })
-
-    // 监听文本增量
-    wsService.on('TEXT_DELTA', (msg) => {
-      const deltaMsg = msg as any
-      currentResponse.value += deltaMsg.delta
-      updateAssistantMessage(deltaMsg.delta)
-    })
-
-    // 监听工具调用
-    wsService.on('TOOL_CALL', (msg) => {
-      addToolCall(msg as ToolCallMessage)
-    })
-
-    // 监听权限请求
-    wsService.on('PERMISSION_REQUEST', (msg) => {
-      setPermissionRequest(msg as PermissionRequestMessage)
-    })
-
-    // 监听响应完成
-    wsService.on('RESPONSE_COMPLETE', (msg) => {
-      isThinking.value = false
-      clearToolCalls()
-    })
-
-    // 监听错误
-    wsService.on('ERROR', (msg) => {
-      console.error('服务器错误:', msg)
-      isThinking.value = false
-    })
-
-    // 监听历史消息
-    wsService.on('HISTORY', (msg) => {
-      messages.value = (msg as any).messages || []
-    })
-
-    // 监听统计
-    wsService.on('STATS', (msg) => {
-      updateStats((msg as any).stats)
-    })
-
-    // 主动连接 WebSocket
-    wsService.connect().catch(err => {
-      console.error('WebSocket 连接失败:', err)
-    })
-  }
-
-  // 手动连接 WebSocket
-  function connect() {
-    wsService.connect().catch(err => {
-      console.error('WebSocket 连接失败:', err)
-    })
-  }
-
-  // 断开连接
-  function disconnect() {
-    wsService.disconnect()
-  }
-
-  // 使用设置的服务器地址连接
-  function connectWithSettings() {
-    const saved = localStorage.getItem('ai-agent-settings')
-    let serverUrl = ''
-
-    if (saved) {
-      try {
-        const settings = JSON.parse(saved)
-        serverUrl = settings.serverUrl || ''
-      } catch (e) {
-        console.error('加载设置失败:', e)
-      }
+  // 获取历史消息
+  async function loadHistory(limit: number = 50) {
+    try {
+      const res = await fetch(`${serverUrl.value}/api/v2/messages?limit=${limit}`)
+      const data = await res.json()
+      messages.value = data
+    } catch (error) {
+      console.error('加载历史失败:', error)
     }
+  }
 
-    // 断开旧连接
-    wsService.disconnect()
+  // 获取统计
+  async function loadStats() {
+    try {
+      const res = await fetch(`${serverUrl.value}/api/v2/stats`)
+      const data = await res.json()
+      stats.value = data
+    } catch (error) {
+      console.error('加载统计失败:', error)
+    }
+  }
 
-    // 重新创建 WebSocket 服务实例
-    const newService = new WebSocketService(serverUrl)
-
-    // 重新注册事件监听器
-    newService.on('CONNECTED', (msg) => {
-      console.log('WebSocket 已连接，会话 ID:', (msg as any).sessionId)
-    })
-    newService.on('RESPONSE_START', () => {
-      isThinking.value = true
-      currentResponse.value = ''
-    })
-    newService.on('TEXT_DELTA', (msg) => {
-      const deltaMsg = msg as any
-      currentResponse.value += deltaMsg.delta
-      updateAssistantMessage(deltaMsg.delta)
-    })
-    newService.on('TOOL_CALL', (msg) => {
-      addToolCall(msg as ToolCallMessage)
-    })
-    newService.on('PERMISSION_REQUEST', (msg) => {
-      setPermissionRequest(msg as PermissionRequestMessage)
-    })
-    newService.on('RESPONSE_COMPLETE', (msg) => {
-      isThinking.value = false
-      clearToolCalls()
-    })
-    newService.on('ERROR', (msg) => {
-      console.error('服务器错误:', msg)
-      isThinking.value = false
-    })
-    newService.on('HISTORY', (msg) => {
-      messages.value = (msg as any).messages || []
-    })
-    newService.on('STATS', (msg) => {
-      updateStats((msg as any).stats)
-    })
-
-    // 替换全局 wsService 的引用
-    Object.assign(wsService, newService)
-
-    // 发起连接
-    wsService.connect().catch(err => {
-      console.error('WebSocket 连接失败:', err)
-    })
+  // 更新服务器地址
+  function updateServerUrl(newUrl: string) {
+    serverUrl.value = newUrl
   }
 
   return {
@@ -249,6 +217,7 @@ export const useChatStore = defineStore('chat', () => {
     stats,
     isThinking,
     currentResponse,
+    serverUrl,
     // 计算属性
     hasPendingPermission,
     hasPendingToolCalls,
@@ -264,9 +233,9 @@ export const useChatStore = defineStore('chat', () => {
     updateStats,
     sendMessage,
     respondPermission,
-    initWebSocket,
-    connect,
-    disconnect,
-    connectWithSettings
+    initServerUrl,
+    loadHistory,
+    loadStats,
+    updateServerUrl
   }
 })
