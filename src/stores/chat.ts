@@ -59,17 +59,16 @@ export const useChatStore = defineStore('chat', () => {
 
   // 更新助手消息（流式）
   function updateAssistantMessage(content: string, replace: boolean = false) {
-    const lastMessage = messages.value[messages.value.length - 1]
+    const idx = messages.value.length - 1
+    const lastMessage = messages.value[idx]
     if (lastMessage && lastMessage.type === 'ASSISTANT') {
       if (replace) {
         // 替换为完整内容（用于 RESPONSE_COMPLETE）
-        lastMessage.content = content
+        messages.value[idx] = { ...lastMessage, content }
       } else {
         // 累加内容（用于 TEXT_DELTA）
-        lastMessage.content += content
+        messages.value[idx] = { ...lastMessage, content: lastMessage.content + content }
       }
-      // 强制触发响应式更新
-      messages.value = [...messages.value]
     } else {
       addAssistantMessage(content)
     }
