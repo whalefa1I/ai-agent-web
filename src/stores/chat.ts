@@ -131,19 +131,25 @@ export const useChatStore = defineStore('chat', () => {
       })
     })
 
-    // 按时间排序，但保证工具调用显示在对应的助手消息之前
+    // 按时间排序，但保证正确的对话流程：用户 → 工具 → 助手
     allMessages.sort((a, b) => {
-      const timeDiff = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      if (timeDiff !== 0) return timeDiff
+      const timeA = new Date(a.timestamp).getTime()
+      const timeB = new Date(b.timestamp).getTime()
+      const timeDiff = Math.abs(timeA - timeB)
 
-      // 同时刻的消息：工具调用 > 待办事项 > 助手消息 > 用户消息
-      const typePriority: Record<string, number> = {
-        'TOOL': 0,
-        'TODO': 1,
-        'ASSISTANT': 2,
-        'USER': 3
+      // 如果时间差在 2 秒内，按对话逻辑排序：用户 > 工具 > 待办 > 助手
+      if (timeDiff < 2000) {
+        const typePriority: Record<string, number> = {
+          'USER': 0,       // 用户消息优先（触发者）
+          'TOOL': 1,       // 然后是工具调用
+          'TODO': 2,       // 待办事项
+          'ASSISTANT': 3   // 最后是助手回复
+        }
+        return typePriority[a.type] - typePriority[b.type]
       }
-      return typePriority[a.type] - typePriority[b.type]
+
+      // 时间差超过 2 秒，按时间排序
+      return timeA - timeB
     })
 
     messages.value = allMessages
