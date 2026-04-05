@@ -111,7 +111,8 @@ const getToolDescription = (toolCall: ToolCallArtifact) => {
   if (metadata.extractDescription) {
     return metadata.extractDescription(input)
   }
-  return toolCall.header?.inputSummary || ''
+  const summary = toolCall.header?.inputSummary
+  return summary ? String(summary) : ''
 }
 
 // 获取工具图标
