@@ -42,16 +42,36 @@ const filePath = computed(() => {
 
 // 提取旧内容
 const oldText = computed(() => {
-  return props.toolCall.body?.input?.oldText ||
-         props.toolCall.body?.input?.old_string ||
-         '<原内容>'
+  // 首先从 input 获取
+  const inputOld = props.toolCall.body?.input?.oldText ||
+                   props.toolCall.body?.input?.old_string ||
+                   ''
+  if (inputOld) return inputOld
+
+  // 如果没有，尝试从 output 中解析
+  const output = props.toolCall.body?.output as string
+  if (output && output.includes('- ')) {
+    const match = output.match(/- (.+?)(?:\n|$)/)
+    if (match && match[1]) return match[1]
+  }
+  return '<原内容>'
 })
 
 // 提取新内容
 const newText = computed(() => {
-  return props.toolCall.body?.input?.newText ||
-         props.toolCall.body?.input?.new_string ||
-         '<新内容>'
+  // 首先从 input 获取
+  const inputNew = props.toolCall.body?.input?.newText ||
+                   props.toolCall.body?.input?.new_string ||
+                   ''
+  if (inputNew) return inputNew
+
+  // 如果没有，尝试从 output 中解析
+  const output = props.toolCall.body?.output as string
+  if (output && output.includes('+ ')) {
+    const match = output.match(/\+ (.+?)(?:\n|$)/)
+    if (match && match[1]) return match[1]
+  }
+  return '<新内容>'
 })
 </script>
 
