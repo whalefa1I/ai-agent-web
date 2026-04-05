@@ -258,7 +258,7 @@ export interface ToolArtifact {
  */
 export interface ChatMessageDTO {
   id: string
-  type: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL' | 'TODO'
+  type: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL' | 'TODO' | 'THINKING'
   content: string
   timestamp: string
   inputTokens?: number
