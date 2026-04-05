@@ -16,6 +16,20 @@
           <div class="markdown-body" v-html="renderMarkdown(message.content)"></div>
         </template>
 
+        <!-- 思考中状态 -->
+        <template v-else-if="message.type === 'THINKING'">
+          <div class="thinking-bubble">
+            <div class="flex items-center space-x-2">
+              <div class="flex space-x-1">
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+              </div>
+              <span class="text-sm text-gray-500">思考中...</span>
+            </div>
+          </div>
+        </template>
+
         <!-- 工具调用消息 -->
         <template v-else-if="message.type === 'TOOL' && message.toolCall">
           <ToolCalls :toolCalls="[message.toolCall]" />
@@ -144,5 +158,12 @@ const getMessageTimeClass = (type: string) => {
   background: transparent;
   padding: 0;
   color: #e2e8f0;
+}
+
+.thinking-bubble {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: inline-block;
 }
 </style>

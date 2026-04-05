@@ -131,26 +131,8 @@ export const useChatStore = defineStore('chat', () => {
       })
     })
 
-    // 按时间排序，但保证正确的对话流程：用户 → 工具 → 助手
-    allMessages.sort((a, b) => {
-      const timeA = new Date(a.timestamp).getTime()
-      const timeB = new Date(b.timestamp).getTime()
-      const timeDiff = Math.abs(timeA - timeB)
-
-      // 如果时间差在 2 秒内，按对话逻辑排序：用户 > 工具 > 待办 > 助手
-      if (timeDiff < 2000) {
-        const typePriority: Record<string, number> = {
-          'USER': 0,       // 用户消息优先（触发者）
-          'TOOL': 1,       // 然后是工具调用
-          'TODO': 2,       // 待办事项
-          'ASSISTANT': 3   // 最后是助手回复
-        }
-        return typePriority[a.type] - typePriority[b.type]
-      }
-
-      // 时间差超过 2 秒，按时间排序
-      return timeA - timeB
-    })
+    // 按时间排序
+    allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
     messages.value = allMessages
 
@@ -187,13 +169,15 @@ export const useChatStore = defineStore('chat', () => {
         // 新消息或消息更新，重新加载所有消息
         apiService.value.getArtifacts().then(artifacts => {
           processArtifacts(artifacts)
-          // 收到助手回复后，清除思考状态
+          // 收到助手回复后，清除思考状态并移除 thinking 消息
           if (header.subtype === 'assistant-message') {
             const body = apiService.value.parseBody(artifact)
             // 只有在收到最终回复内容后才清除 isThinking
             if (body.content && body.content.trim()) {
               console.log('收到助手回复内容，清除 isThinking')
               isThinking.value = false
+              // 移除所有 thinking 消息
+              messages.value = messages.value.filter(m => m.type !== 'THINKING')
             }
           }
         })
@@ -258,17 +242,29 @@ export const useChatStore = defineStore('chat', () => {
     if (!content.trim()) return
 
     addUserMessage(content)
+
+    // 添加 thinking 消息到消息流（显示在工具块之后）
+    const thinkingId = `thinking-${Date.now()}`
+    messages.value.push({
+      id: thinkingId,
+      type: 'THINKING' as const,
+      content: '',
+      timestamp: new Date().toISOString()
+    })
+
     isThinking.value = true
 
     try {
       // 创建 user message artifact
       await apiService.value.sendMessage(content)
 
-      // 轮询会自动获取新消息
+      // 轮询会自动获取新消息，收到助手回复后会移除 thinking
       // 不需要手动处理响应，Happy 模式下由 AI 服务创建 assistant message artifact
     } catch (error) {
       console.error('发送消息失败:', error)
       isThinking.value = false
+      // 移除 thinking 消息
+      messages.value = messages.value.filter(m => m.id !== thinkingId)
       addAssistantMessage(`错误：${error instanceof Error ? error.message : '发送失败'}`)
     }
   }
