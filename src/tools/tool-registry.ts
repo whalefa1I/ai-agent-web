@@ -95,14 +95,14 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'edit',
     minimal: false,
     extractTitle: (input) => {
-      const path = input.path as string
+      const path = (input.path as string) || (input.file_path as string)
       if (!path) return '写入文件'
       const parts = path.split(/[\\/]/)
       return parts[parts.length - 1] || '写入文件'
     },
     extractDescription: (input) => {
-      const path = input.path as string
-      return `写入：${path}`
+      const path = (input.path as string) || (input.file_path as string)
+      return path ? `写入：${path}` : '写入文件'
     }
   },
 
