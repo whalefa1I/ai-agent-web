@@ -176,9 +176,12 @@ export const toolRegistry: Record<string, ToolMetadata> = {
       return action ? `${action} 待办` : '待办事项'
     },
     extractDescription: (input) => {
-      const action = (input.action as string) || 'create'
+      const action = (input.action as string) || ''
       const content = (input.content as string) || (input.description as string) || ''
-      return `${action}: ${content}`
+      if (action && content) return `${action}: ${content}`
+      if (action) return action
+      if (content) return content
+      return ''
     }
   },
 
