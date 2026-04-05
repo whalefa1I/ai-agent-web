@@ -125,21 +125,24 @@ const getMessageTimeClass = (type: string) => {
 }
 
 .markdown-body :deep(code) {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(100, 116, 139, 0.2);
   padding: 2px 4px;
   border-radius: 3px;
   font-family: 'Cascadia Code', 'Fira Code', monospace;
+  color: #d946ef;
 }
 
 .markdown-body :deep(pre) {
-  background: #f5f5f5;
+  background: #1e293b;
   padding: 12px;
   border-radius: 6px;
   overflow-x: auto;
+  border: 1px solid #334155;
 }
 
 .markdown-body :deep(pre code) {
   background: transparent;
   padding: 0;
+  color: #e2e8f0;
 }
 </style>
