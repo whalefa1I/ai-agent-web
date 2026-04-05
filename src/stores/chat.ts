@@ -119,7 +119,13 @@ export const useChatStore = defineStore('chat', () => {
 
       if (header.type === 'message') {
         // 新消息，重新加载所有消息
-        apiService.value.getArtifacts().then(artifacts => processArtifacts(artifacts))
+        apiService.value.getArtifacts().then(artifacts => {
+          processArtifacts(artifacts)
+          // 收到助手回复后，清除思考状态
+          if (header.subtype === 'assistant-message') {
+            isThinking.value = false
+          }
+        })
       } else if (header.type === 'tool-call') {
         // 新工具调用
         const toolCall = { ...artifact, header, body: apiService.value.parseBody(artifact) } as ToolCallArtifact
