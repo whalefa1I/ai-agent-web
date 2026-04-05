@@ -83,6 +83,9 @@ function encryptData(data: object, key: string): string {
 
 function decryptData<T>(encryptedBase64: string, key: string): T {
   // TODO: 实现真实解密
+  if (!encryptedBase64 || encryptedBase64.trim() === '') {
+    return {} as T
+  }
   return JSON.parse(decodeBase64(encryptedBase64))
 }
 
@@ -390,7 +393,10 @@ export class HappyApiService {
    * 解析 artifact body
    */
   parseBody<T = HappyArtifactBody>(artifact: HappyArtifact): T {
-    return artifact.body ? decryptData<T>(artifact.body, 'key') : {} as T
+    if (!artifact.body || artifact.body.trim() === '') {
+      return {} as T
+    }
+    return decryptData<T>(artifact.body, 'key')
   }
 
   /**

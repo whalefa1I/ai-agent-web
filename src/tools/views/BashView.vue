@@ -1,23 +1,22 @@
 <template>
   <div class="bash-view">
-    <div class="command-section">
-      <div class="command-label">命令</div>
-      <div class="command-content">
-        <code class="command-code">{{ command }}</code>
-      </div>
-    </div>
-
     <!-- 执行中状态 -->
     <div v-if="status === 'started' || status === 'in_progress'" class="running-status">
       <span class="spinner"></span>
       <span class="text-sm text-gray-500">执行中...</span>
+      <!-- 执行中显示命令 -->
+      <div class="command-section">
+        <div class="command-label">命令</div>
+        <div class="command-content">
+          <code class="command-code">{{ command }}</code>
+        </div>
+      </div>
     </div>
 
-    <!-- 输出 -->
+    <!-- 执行完成 - 整合显示 -->
     <div v-else-if="hasOutput" class="output-section">
-      <div class="output-label">输出</div>
       <div class="output-content">
-        <pre class="output-pre">{{ output }}</pre>
+        <pre class="output-pre">{{ formattedOutput }}</pre>
       </div>
     </div>
 
@@ -54,6 +53,44 @@ const output = computed(() => {
   return ''
 })
 
+// 格式化输出：解析并美化显示
+const formattedOutput = computed(() => {
+  const outputStr = output.value
+  if (!outputStr) return ''
+
+  // 尝试解析标准输出格式：Command: xxx \n Exit code: xxx \n Duration: xxx \n\n STDOUT: xxx
+  const lines = outputStr.split('\n')
+  const result: string[] = []
+
+  let hasCommand = false
+  let hasStdout = false
+
+  for (const line of lines) {
+    if (line.startsWith('Command:')) {
+      hasCommand = true
+      result.push(`📝 ${line}`)
+    } else if (line.startsWith('Exit code:')) {
+      const exitCode = line.replace('Exit code:', '').trim()
+      if (exitCode === '0') {
+        result.push(`✅ 退出码：${exitCode}`)
+      } else {
+        result.push(`❌ 退出码：${exitCode}`)
+      }
+    } else if (line.startsWith('Duration:')) {
+      result.push(`⏱️ ${line}`)
+    } else if (line.trim() === 'STDOUT:') {
+      hasStdout = true
+      result.push('\n💡 输出结果：')
+    } else if (line.trim() === 'STDERR:') {
+      result.push('\n⚠️ 错误输出：')
+    } else if (line || result.length === 0) {
+      result.push(line)
+    }
+  }
+
+  return result.join('\n')
+})
+
 // 提取错误
 const error = computed(() => {
   return props.toolCall.body?.error || ''
@@ -75,36 +112,12 @@ const hasOutput = computed(() => {
   padding: 8px 0;
 }
 
-.command-section {
-  margin-bottom: 12px;
-}
-
-.command-label {
-  font-size: 12px;
-  color: #6b7280;
-  text-transform: uppercase;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.command-content {
-  background: #f3f4f6;
-  border-radius: 6px;
-  padding: 8px 12px;
-}
-
-.command-code {
-  font-family: 'Cascadia Code', 'Fira Code', monospace;
-  font-size: 13px;
-  color: #1f2937;
-  word-break: break-all;
-}
-
 .running-status {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 0;
+  flex-wrap: wrap;
 }
 
 .spinner {
@@ -121,32 +134,54 @@ const hasOutput = computed(() => {
   to { transform: rotate(360deg); }
 }
 
-.output-section {
-  margin-top: 12px;
+.command-section {
+  margin: 8px 0 12px;
+  width: 100%;
 }
 
-.output-label {
-  font-size: 12px;
+.command-label {
+  font-size: 11px;
   color: #6b7280;
   text-transform: uppercase;
   font-weight: 600;
   margin-bottom: 4px;
+  letter-spacing: 0.05em;
+}
+
+.command-content {
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.command-code {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 13px;
+  color: #1f2937;
+  word-break: break-all;
+}
+
+.output-section {
+  margin-top: 12px;
 }
 
 .output-content {
-  background: #1f2937;
-  border-radius: 6px;
-  padding: 12px;
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 16px;
   overflow-x: auto;
+  border: 1px solid #334155;
 }
 
 .output-pre {
   font-family: 'Cascadia Code', 'Fira Code', monospace;
-  font-size: 12px;
-  color: #10b981;
+  font-size: 13px;
+  color: #a7f3d0;
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;
+  line-height: 1.6;
 }
 
 .error-section {
