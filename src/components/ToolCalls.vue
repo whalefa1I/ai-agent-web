@@ -109,7 +109,8 @@ const getToolDescription = (toolCall: ToolCallArtifact) => {
   const input = toolCall.body?.input || {}
 
   if (metadata.extractDescription) {
-    return metadata.extractDescription(input)
+    const desc = metadata.extractDescription(input)
+    return desc || ''  // 防止返回 undefined
   }
   const summary = toolCall.header?.inputSummary
   return summary ? String(summary) : ''
