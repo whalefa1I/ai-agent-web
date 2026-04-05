@@ -131,8 +131,26 @@ export const useChatStore = defineStore('chat', () => {
       })
     })
 
-    // 按时间排序
-    allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    // 按时间排序，但同一秒内的消息按类型排序：用户 > 工具 > 待办 > 助手
+    allMessages.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime()
+      const timeB = new Date(b.timestamp).getTime()
+
+      // 如果时间差在 10 秒内，按对话逻辑排序
+      if (Math.abs(timeA - timeB) < 10000) {
+        const typePriority: Record<string, number> = {
+          'USER': 0,
+          'TOOL': 1,
+          'TODO': 2,
+          'THINKING': 3,
+          'ASSISTANT': 4
+        }
+        return typePriority[a.type] - typePriority[b.type]
+      }
+
+      // 时间差超过 10 秒，按时间排序
+      return timeA - timeB
+    })
 
     messages.value = allMessages
 
