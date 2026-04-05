@@ -131,8 +131,20 @@ export const useChatStore = defineStore('chat', () => {
       })
     })
 
-    // 按时间排序
-    allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    // 按时间排序，但保证工具调用显示在对应的助手消息之前
+    allMessages.sort((a, b) => {
+      const timeDiff = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      if (timeDiff !== 0) return timeDiff
+
+      // 同时刻的消息：工具调用 > 待办事项 > 助手消息 > 用户消息
+      const typePriority: Record<string, number> = {
+        'TOOL': 0,
+        'TODO': 1,
+        'ASSISTANT': 2,
+        'USER': 3
+      }
+      return typePriority[a.type] - typePriority[b.type]
+    })
 
     messages.value = allMessages
 

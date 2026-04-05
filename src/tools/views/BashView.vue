@@ -58,33 +58,36 @@ const formattedOutput = computed(() => {
   const outputStr = output.value
   if (!outputStr) return ''
 
-  // 尝试解析标准输出格式：Command: xxx \n Exit code: xxx \n Duration: xxx \n\n STDOUT: xxx
   const lines = outputStr.split('\n')
   const result: string[] = []
 
-  let hasCommand = false
-  let hasStdout = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
 
-  for (const line of lines) {
+    // 跳过 WSL 错误行
+    if (line.includes('WSL') && line.includes('ERROR:')) {
+      continue
+    }
+
     if (line.startsWith('Command:')) {
-      hasCommand = true
       result.push(`📝 ${line}`)
-    } else if (line.startsWith('Exit code:')) {
-      const exitCode = line.replace('Exit code:', '').trim()
-      if (exitCode === '0') {
-        result.push(`✅ 退出码：${exitCode}`)
-      } else {
-        result.push(`❌ 退出码：${exitCode}`)
-      }
+    } else if (line.toLowerCase().startsWith('exit code:')) {
+      const exitCode = line.replace(/exit code:/i, '').trim()
+      result.push(exitCode === '0' ? `✅ 退出码：${exitCode}` : `❌ 退出码：${exitCode}`)
     } else if (line.startsWith('Duration:')) {
       result.push(`⏱️ ${line}`)
-    } else if (line.trim() === 'STDOUT:') {
-      hasStdout = true
+    } else if (line.trim().toUpperCase() === 'STDOUT:') {
       result.push('\n💡 输出结果：')
-    } else if (line.trim() === 'STDERR:') {
+    } else if (line.trim().toUpperCase() === 'STDERR:') {
       result.push('\n⚠️ 错误输出：')
-    } else if (line || result.length === 0) {
+    } else if (line.trim() === 'OUTPUT:') {
+      result.push('\n📄 输出：')
+    } else if (line) {
+      // 非空行直接添加
       result.push(line)
+    } else if (result.length > 0 && result[result.length - 1].includes('输出结果：')) {
+      // 如果是输出结果后的第一个空行，保留它作为分隔
+      // 不添加，让输出紧跟在标题后
     }
   }
 
@@ -167,7 +170,7 @@ const hasOutput = computed(() => {
 }
 
 .output-content {
-  background: #1e293b;
+  background: #0f172a;
   border-radius: 8px;
   padding: 16px;
   overflow-x: auto;
@@ -177,11 +180,16 @@ const hasOutput = computed(() => {
 .output-pre {
   font-family: 'Cascadia Code', 'Fira Code', monospace;
   font-size: 13px;
-  color: #a7f3d0;
+  color: #e2e8f0;
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;
   line-height: 1.6;
+}
+
+/* 输出结果内容使用高亮颜色 */
+.output-pre::after {
+  content: '';
 }
 
 .error-section {
