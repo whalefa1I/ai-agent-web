@@ -102,14 +102,20 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = newMessages
 
     // 有助手消息时，清除思考状态
+    // 注意：只有在有非空的助手消息内容时才清除，表示 AI 已完成回复
     if (assistantMessages.length > 0 && isThinking.value) {
-      console.log('检测到助手消息，清除 isThinking')
-      isThinking.value = false
+      const hasContent = assistantMessages.some(m => m.body.content && m.body.content.trim())
+      if (hasContent) {
+        console.log('检测到助手回复内容，清除 isThinking')
+        isThinking.value = false
+      }
     }
 
-    // 提取工具调用
+    // 提取工具调用 - 显示所有工具调用（包括已完成的），让用户可以看到执行过程和结果
     const toolCalls = apiService.value.extractToolCalls(artifacts)
-    pendingToolCalls.value = toolCalls.filter(tc => tc.body.status !== 'completed' && tc.body.status !== 'failed')
+    // 按时间排序，显示最近的工具调用
+    toolCalls.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    pendingToolCalls.value = toolCalls
 
     // 提取权限请求
     const permissions = apiService.value.extractPendingPermissions(artifacts)
