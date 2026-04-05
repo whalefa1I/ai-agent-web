@@ -101,6 +101,12 @@ export const useChatStore = defineStore('chat', () => {
 
     messages.value = newMessages
 
+    // 有助手消息时，清除思考状态
+    if (assistantMessages.length > 0 && isThinking.value) {
+      console.log('检测到助手消息，清除 isThinking')
+      isThinking.value = false
+    }
+
     // 提取工具调用
     const toolCalls = apiService.value.extractToolCalls(artifacts)
     pendingToolCalls.value = toolCalls.filter(tc => tc.body.status !== 'completed' && tc.body.status !== 'failed')
@@ -116,6 +122,7 @@ export const useChatStore = defineStore('chat', () => {
   function processNewArtifact(artifact: HappyArtifact) {
     try {
       const header = apiService.value.parseHeader(artifact)
+      console.log('收到新 artifact:', header.type, header.subtype)
 
       if (header.type === 'message') {
         // 新消息，重新加载所有消息
@@ -123,6 +130,7 @@ export const useChatStore = defineStore('chat', () => {
           processArtifacts(artifacts)
           // 收到助手回复后，清除思考状态
           if (header.subtype === 'assistant-message') {
+            console.log('收到助手回复，清除 isThinking')
             isThinking.value = false
           }
         })
