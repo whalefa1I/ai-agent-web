@@ -340,10 +340,17 @@ export class HappyApiService {
           // 更新已知状态
           const newMap = new Map<string, string>()
           artifacts.forEach(a => {
-            newMap.set(a.id, `${a.headerVersion}-${a.bodyVersion}`)
+            const newVersion = `${a.headerVersion}-${a.bodyVersion}`
+            const oldVersion = lastKnownArtifacts.get(a.id)
 
-            // 检测是否是新增
+            newMap.set(a.id, newVersion)
+
+            // 检测是否是新增或更新
             if (!lastKnownArtifacts.has(a.id)) {
+              // 新增
+              onArtifactUpdate(a)
+            } else if (oldVersion !== newVersion) {
+              // 更新（流式输出场景）
               onArtifactUpdate(a)
             }
           })

@@ -131,17 +131,21 @@ export const useChatStore = defineStore('chat', () => {
       console.log('收到新 artifact:', header.type, header.subtype)
 
       if (header.type === 'message') {
-        // 新消息，重新加载所有消息
+        // 新消息或消息更新，重新加载所有消息
         apiService.value.getArtifacts().then(artifacts => {
           processArtifacts(artifacts)
           // 收到助手回复后，清除思考状态
           if (header.subtype === 'assistant-message') {
-            console.log('收到助手回复，清除 isThinking')
-            isThinking.value = false
+            const body = apiService.value.parseBody(artifact)
+            // 只有在收到最终回复内容后才清除 isThinking
+            if (body.content && body.content.trim()) {
+              console.log('收到助手回复内容，清除 isThinking')
+              isThinking.value = false
+            }
           }
         })
       } else if (header.type === 'tool-call') {
-        // 新工具调用
+        // 新工具调用或工具状态更新
         const toolCall = { ...artifact, header, body: apiService.value.parseBody(artifact) } as ToolCallArtifact
         const index = pendingToolCalls.value.findIndex(tc => tc.id === artifact.id)
         if (index >= 0) {
