@@ -119,7 +119,7 @@ export class HappyApiService {
   private accountId: string
   private sessionId: string
   private pollingTimer: number | null = null
-  private pollingInterval: number = 2000 // 2 秒轮询一次
+  private pollingInterval: number = 500 // 500ms 轮询一次（支持流式输出）
 
   constructor(serverUrl: string = DEFAULT_SERVER_URL) {
     this.serverUrl = serverUrl.replace(/\/$/, '')
