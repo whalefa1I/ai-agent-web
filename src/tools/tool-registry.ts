@@ -173,12 +173,12 @@ export const toolRegistry: Record<string, ToolMetadata> = {
       if (action === 'list') return '待办列表'
       if (action === 'update') return '更新待办'
       if (action === 'delete') return '删除待办'
-      return '待办事项'
+      return action ? `${action} 待办` : '待办事项'
     },
     extractDescription: (input) => {
-      const action = input.action as string
-      const content = input.content as string
-      return `${action}: ${content || ''}`
+      const action = (input.action as string) || 'unknown'
+      const content = (input.content as string) || ''
+      return `${action}: ${content}`
     }
   },
 
