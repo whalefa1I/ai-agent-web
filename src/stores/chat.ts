@@ -6,6 +6,8 @@ import type {
   MessageArtifact,
   ToolCallArtifact,
   PermissionArtifact,
+  TodoArtifact,
+  TodoArtifactHeader,
   ChatMessageDTO,
   SessionStats
 } from '@/types/happy-protocol'
@@ -15,6 +17,7 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessageDTO[]>([])
   const pendingToolCalls = ref<ToolCallArtifact[]>([])
   const pendingPermission = ref<PermissionArtifact | null>(null)
+  const todos = ref<TodoArtifact[]>([])
   const stats = ref<SessionStats | null>(null)
   const isThinking = ref(false)
   const apiService = ref<HappyApiService>(new HappyApiService())
@@ -71,38 +74,69 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
-   * 处理所有 artifacts
+   * 处理所有 artifacts - 将工具调用和待办事项嵌入到聊天流中
    */
   function processArtifacts(artifacts: HappyArtifact[]) {
-    // 提取消息
+    // 提取所有类型的 artifacts
     const userMessages = apiService.value.extractUserMessages(artifacts)
     const assistantMessages = apiService.value.extractAssistantMessages(artifacts)
+    const toolCalls = apiService.value.extractToolCalls(artifacts)
+    const todoItems = apiService.value.extractTodos(artifacts)
+    const permissions = apiService.value.extractPendingPermissions(artifacts)
 
-    // 转换为 ChatMessageDTO
-    const newMessages: ChatMessageDTO[] = [
-      ...userMessages.map(m => ({
+    // 构建聊天流消息（按时间排序，工具和待办嵌入到流中）
+    const allMessages: ChatMessageDTO[] = []
+
+    // 添加用户消息
+    userMessages.forEach(m => {
+      allMessages.push({
         id: m.id,
         type: 'USER' as const,
         content: m.body.content,
         timestamp: new Date(m.createdAt).toISOString()
-      })),
-      ...assistantMessages.map(m => ({
+      })
+    })
+
+    // 添加工具调用作为独立消息
+    toolCalls.forEach(tc => {
+      allMessages.push({
+        id: tc.id,
+        type: 'TOOL' as const,
+        content: '',  // 工具调用的内容在 toolCall 字段中
+        timestamp: new Date(tc.createdAt).toISOString(),
+        toolCall: tc
+      })
+    })
+
+    // 添加待办事项作为独立消息
+    todoItems.forEach(todo => {
+      allMessages.push({
+        id: todo.id,
+        type: 'TODO' as const,
+        content: '',  // 待办事项的内容在 todo 字段中
+        timestamp: new Date(todo.createdAt).toISOString(),
+        todo: todo
+      })
+    })
+
+    // 添加助手消息
+    assistantMessages.forEach(m => {
+      allMessages.push({
         id: m.id,
         type: 'ASSISTANT' as const,
         content: m.body.content,
         timestamp: new Date(m.createdAt).toISOString(),
         inputTokens: m.body.inputTokens,
         outputTokens: m.body.outputTokens
-      }))
-    ]
+      })
+    })
 
     // 按时间排序
-    newMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
-    messages.value = newMessages
+    messages.value = allMessages
 
     // 有助手消息时，清除思考状态
-    // 注意：只有在有非空的助手消息内容时才清除，表示 AI 已完成回复
     if (assistantMessages.length > 0 && isThinking.value) {
       const hasContent = assistantMessages.some(m => m.body.content && m.body.content.trim())
       if (hasContent) {
@@ -111,14 +145,15 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
 
-    // 提取工具调用 - 显示所有工具调用（包括已完成的），让用户可以看到执行过程和结果
-    const toolCalls = apiService.value.extractToolCalls(artifacts)
-    // 按时间排序，显示最近的工具调用
+    // 更新独立的工具列表（保持向后兼容）
     toolCalls.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     pendingToolCalls.value = toolCalls
 
+    // 更新独立的待办列表（保持向后兼容）
+    todoItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    todos.value = todoItems
+
     // 提取权限请求
-    const permissions = apiService.value.extractPendingPermissions(artifacts)
     pendingPermission.value = permissions.length > 0 ? permissions[0] : null
   }
 
@@ -152,6 +187,15 @@ export const useChatStore = defineStore('chat', () => {
           pendingToolCalls.value[index] = toolCall
         } else {
           pendingToolCalls.value.push(toolCall)
+        }
+      } else if (header.type === 'todo') {
+        // 新待办事项或待办状态更新
+        const todo = { ...artifact, header: header as TodoArtifactHeader, body: apiService.value.parseBody(artifact) } as TodoArtifact
+        const index = todos.value.findIndex(t => t.id === artifact.id)
+        if (index >= 0) {
+          todos.value[index] = todo
+        } else {
+          todos.value.push(todo)
         }
       } else if (header.type === 'permission') {
         // 新权限请求
@@ -277,6 +321,7 @@ export const useChatStore = defineStore('chat', () => {
     messages,
     pendingToolCalls,
     pendingPermission,
+    todos,
     stats,
     isThinking,
     serverUrl,

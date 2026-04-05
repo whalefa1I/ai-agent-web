@@ -20,7 +20,8 @@ import type {
   HappyArtifactBody,
   ToolCallArtifact,
   MessageArtifact,
-  PermissionArtifact
+  PermissionArtifact,
+  TodoArtifact
 } from '@/types/happy-protocol'
 
 // 配置
@@ -449,6 +450,22 @@ export class HappyApiService {
         try {
           const header = this.parseHeader(a)
           return header.type === 'permission' && !this.parseBody(a)?.response
+        } catch {
+          return false
+        }
+      })
+      .map(a => ({ ...a, header: this.parseHeader(a), body: this.parseBody(a) }))
+  }
+
+  /**
+   * 从 artifacts 中提取待办事项
+   */
+  extractTodos(artifacts: HappyArtifact[]): TodoArtifact[] {
+    return artifacts
+      .filter(a => {
+        try {
+          const header = this.parseHeader(a)
+          return header.type === 'todo'
         } catch {
           return false
         }

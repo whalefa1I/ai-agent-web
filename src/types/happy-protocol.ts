@@ -28,7 +28,7 @@ export interface HappyArtifact {
  * Header 基础结构
  */
 export interface HappyArtifactHeader {
-  type: 'message' | 'tool-call' | 'permission' | 'system'
+  type: 'message' | 'tool-call' | 'permission' | 'system' | 'todo'
   subtype: string
   title?: string
   icon?: string
@@ -106,6 +106,33 @@ export interface ToolCallArtifactBody extends HappyArtifactBody {
 export interface ToolCallArtifact extends Omit<HappyArtifact, 'header' | 'body'> {
   header: ToolCallArtifactHeader
   body: ToolCallArtifactBody
+}
+
+/**
+ * 待办事项类型 Artifact
+ */
+export interface TodoArtifactHeader extends HappyArtifactHeader {
+  type: 'todo'
+  subtype: 'todo-item'
+  toolName: 'todo_write'
+  toolDisplayName: '待办事项'
+  icon: string
+  status: 'todo' | 'in_progress' | 'completed'
+  todoId: string
+  content: string
+}
+
+export interface TodoArtifactBody extends HappyArtifactBody {
+  type: 'todo-item'
+  status: 'pending' | 'in_progress' | 'completed'
+  content: string
+  todoId: string
+  assignee?: string
+}
+
+export interface TodoArtifact extends Omit<HappyArtifact, 'header' | 'body'> {
+  header: TodoArtifactHeader
+  body: TodoArtifactBody
 }
 
 /**
@@ -231,9 +258,12 @@ export interface ToolArtifact {
  */
 export interface ChatMessageDTO {
   id: string
-  type: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL'
+  type: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL' | 'TODO'
   content: string
   timestamp: string
   inputTokens?: number
   outputTokens?: number
+  // 关联的工具调用或待办事项
+  toolCall?: ToolCallArtifact
+  todo?: TodoArtifact
 }
