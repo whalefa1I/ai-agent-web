@@ -23,8 +23,7 @@ const props = defineProps<{
 
 // 提取文件路径
 const filePath = computed(() => {
-  return (props.toolCall.body?.input?.path as string) ||
-         (props.toolCall.body?.input?.file_path as string) ||
+  return (props.toolCall.body?.input?.file_path as string) ||
          props.toolCall.header?.inputSummary ||
          ''
 })

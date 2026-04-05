@@ -15,13 +15,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import type { ToolCallArtifact } from '@/types/happy-protocol'
 
 interface TodoItem {
   content: string
   status: 'pending' | 'in_progress' | 'completed'
-  priority?: 'high' | 'medium' | 'low'
+  activeForm?: string
   id?: string
 }
 
@@ -31,14 +31,22 @@ const props = defineProps<{
 
 // 从工具调用中提取待办事项
 const todos = computed(() => {
-  const output = props.toolCall.body?.output
+  // 首先尝试从 metadata 中获取 newTodos（claude-code 风格）
+  const metadata = props.toolCall.body?.metadata
+  if (metadata && Array.isArray(metadata.newTodos)) {
+    return metadata.newTodos.map((todo: any) => ({
+      content: todo.content,
+      status: todo.status,
+      activeForm: todo.activeForm,
+      id: todo.id
+    }))
+  }
+
+  // 尝试从 output 中解析
+  const output = props.toolCall.body?.output as string
   if (!output) return []
 
-  // 尝试从输出中解析待办事项
-  // 格式通常是：Created todo item:\n  ID: xxx\n  Content: xxx...
   const todos: TodoItem[] = []
-
-  // 简单解析：查找包含 "Created todo item" 或 "Todo Items" 的部分
   const lines = output.split('\n')
   let currentTodo: Partial<TodoItem> = {}
 
@@ -76,7 +84,7 @@ const getCheckbox = (status: string) => {
   }
 }
 
-// 获取状态样式
+// 获取状态样式类
 const getStatusClass = (status: string) => {
   switch (status) {
     case 'completed': return 'text-green-600 line-through'

@@ -35,8 +35,7 @@ const props = defineProps<{
 
 // 提取文件路径
 const filePath = computed(() => {
-  return (props.toolCall.body?.input?.path as string) ||
-         (props.toolCall.body?.input?.file_path as string) ||
+  return (props.toolCall.body?.input?.file_path as string) ||
          props.toolCall.header?.inputSummary ||
          ''
 })
@@ -44,9 +43,7 @@ const filePath = computed(() => {
 // 提取旧内容
 const oldText = computed(() => {
   // 首先从 input 获取
-  const inputOld = props.toolCall.body?.input?.oldText ||
-                   props.toolCall.body?.input?.old_string ||
-                   ''
+  const inputOld = props.toolCall.body?.input?.old_string as string | undefined
   if (inputOld) return inputOld
 
   // 如果没有，尝试从 output 中解析
@@ -61,9 +58,7 @@ const oldText = computed(() => {
 // 提取新内容
 const newText = computed(() => {
   // 首先从 input 获取
-  const inputNew = props.toolCall.body?.input?.newText ||
-                   props.toolCall.body?.input?.new_string ||
-                   ''
+  const inputNew = props.toolCall.body?.input?.new_string as string | undefined
   if (inputNew) return inputNew
 
   // 如果没有，尝试从 output 中解析
