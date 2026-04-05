@@ -1,6 +1,14 @@
 <template>
   <div class="tool-state-display">
-    <div v-if="artifacts.length === 0" class="no-tools">
+    <div v-if="isLoading && artifacts.length === 0" class="loading">
+      <p>加载工具状态...</p>
+    </div>
+
+    <div v-if="error" class="error">
+      <p>{{ error }}</p>
+    </div>
+
+    <div v-if="artifacts.length === 0 && !isLoading && !error" class="no-tools">
       <p>暂无工具调用</p>
     </div>
 
@@ -78,16 +86,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { useToolStateREST } from '@/composables/useToolStateREST'
 import type { ToolArtifact } from '@/types/tool-state'
-import { useToolStateWebSocket } from '@/composables/useToolStateWebSocket'
 
 const props = defineProps<{
   sessionId: string
   userId: string
 }>()
 
-const { artifacts, updateArtifact } = useToolStateWebSocket(props.userId)
+const { artifacts, isLoading, error, updateArtifact, confirmArtifact, denyArtifact } = useToolStateREST(
+  props.userId,
+  props.sessionId
+)
 
 // 获取工具名称
 function getToolName(artifact: ToolArtifact): string {
@@ -120,35 +130,31 @@ function formatTime(timestamp: number): string {
 
 // 处理确认
 async function handleConfirm(artifact: ToolArtifact) {
-  await updateArtifact(
-    artifact.id,
-    'executing',
-    {
-      ...artifact.body,
-      confirmation: { requested: true, granted: true }
-    },
-    artifact.bodyVersion
-  )
+  await confirmArtifact(artifact.id, artifact.bodyVersion)
 }
 
 // 处理拒绝
 async function handleDeny(artifact: ToolArtifact) {
-  await updateArtifact(
-    artifact.id,
-    'failed',
-    {
-      ...artifact.body,
-      confirmation: { requested: true, granted: false },
-      error: '用户拒绝执行'
-    },
-    artifact.bodyVersion
-  )
+  await denyArtifact(artifact.id, artifact.bodyVersion)
 }
 </script>
 
 <style scoped>
 .tool-state-display {
   padding: 16px;
+}
+
+.loading, .error, .no-tools {
+  text-align: center;
+  padding: 32px;
+  color: #666;
+}
+
+.error {
+  color: #dc2626;
+  background: #fee2e2;
+  border-radius: 8px;
+  margin: 16px;
 }
 
 .tools-list {
@@ -205,6 +211,7 @@ async function handleDeny(artifact: ToolArtifact) {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
 .btn-confirm {
@@ -212,9 +219,17 @@ async function handleDeny(artifact: ToolArtifact) {
   color: white;
 }
 
+.btn-confirm:hover {
+  background: #1565c0;
+}
+
 .btn-deny {
   background: #f5f5f5;
   color: #666;
+}
+
+.btn-deny:hover {
+  background: #e0e0e0;
 }
 
 .input-preview, .output-preview {
@@ -223,6 +238,23 @@ async function handleDeny(artifact: ToolArtifact) {
   border-radius: 4px;
   font-size: 12px;
   overflow-x: auto;
+}
+
+.error-message {
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.success-text {
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.error-text {
+  color: #dc2626;
+  font-weight: 500;
 }
 
 .spinner {
@@ -248,5 +280,18 @@ async function handleDeny(artifact: ToolArtifact) {
   border-top: 1px solid #f0f0f0;
   font-size: 12px;
   color: #999;
+}
+
+.confirmation-granted {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #16a34a;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+.checkmark {
+  font-size: 16px;
 }
 </style>

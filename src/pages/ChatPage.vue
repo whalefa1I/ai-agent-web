@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import MessageList from '@/components/MessageList.vue'
 import InputBar from '@/components/InputBar.vue'
@@ -82,7 +82,11 @@ const currentUserId = computed(() => chatStore.userId)
 onMounted(() => {
   chatStore.initServerUrl()
   chatStore.loadHistory()
-  chatStore.loadStats()
+})
+
+// 组件卸载时清理
+onUnmounted(() => {
+  chatStore.cleanup()
 })
 </script>
 

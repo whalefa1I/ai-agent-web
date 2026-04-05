@@ -4,13 +4,13 @@
       <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-slide-up">
         <!-- 头部：风险等级标识 -->
         <div class="px-6 py-4 border-b flex items-center space-x-3"
-             :style="{ backgroundColor: `${request.levelColor}15` }">
-          <span class="text-2xl">{{ request.levelIcon }}</span>
+             :style="{ backgroundColor: `${request.header.levelColor}15` }">
+          <span class="text-2xl">{{ request.header.levelIcon }}</span>
           <div>
-            <h3 class="font-semibold text-lg" :style="{ color: request.levelColor }">
-              {{ request.levelLabel }}权限请求
+            <h3 class="font-semibold text-lg" :style="{ color: request.header.levelColor }">
+              {{ request.header.levelLabel }}权限请求
             </h3>
-            <p class="text-sm text-gray-500">{{ request.toolDisplayName }}</p>
+            <p class="text-sm text-gray-500">{{ request.header.toolDisplayName }}</p>
           </div>
         </div>
 
@@ -18,20 +18,20 @@
         <div class="p-6 space-y-4">
           <!-- 工具描述 -->
           <div class="bg-gray-50 rounded-lg p-4">
-            <p class="text-sm text-gray-700">{{ request.toolDescription }}</p>
+            <p class="text-sm text-gray-700">{{ request.header.toolDescription }}</p>
           </div>
 
           <!-- 输入摘要 -->
-          <div v-if="request.inputSummary" class="space-y-2">
+          <div v-if="request.body.inputSummary" class="space-y-2">
             <h4 class="font-medium text-sm text-gray-600">执行参数</h4>
-            <pre class="bg-gray-100 rounded-lg p-3 text-sm text-gray-800 overflow-x-auto">{{ request.inputSummary }}</pre>
+            <pre class="bg-gray-100 rounded-lg p-3 text-sm text-gray-800 overflow-x-auto">{{ request.body.inputSummary }}</pre>
           </div>
 
           <!-- 风险说明 -->
-          <div v-if="request.riskExplanation" class="space-y-2">
+          <div v-if="request.body.riskExplanation" class="space-y-2">
             <h4 class="font-medium text-sm text-gray-600">风险说明</h4>
             <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p class="text-sm text-gray-700">{{ request.riskExplanation }}</p>
+              <p class="text-sm text-gray-700">{{ request.body.riskExplanation }}</p>
             </div>
           </div>
 
@@ -40,9 +40,9 @@
             <h4 class="font-medium text-sm text-gray-600">请选择</h4>
             <div class="grid gap-2">
               <button
-                v-for="option in request.permissionOptions"
+                v-for="option in request.body.permissionOptions"
                 :key="option.value"
-                @click="$emit('respond', request.id, option.value as any)"
+                @click="handleRespond(option.value)"
                 :class="[
                   'permission-btn px-4 py-3 rounded-xl text-left transition-all duration-200',
                   getButtonStyle(option.style)
@@ -69,15 +69,19 @@
 </template>
 
 <script setup lang="ts">
-import type { PermissionRequestMessage } from '@/types/protocol'
+import type { PermissionArtifact } from '@/types/happy-protocol'
+import { useChatStore } from '@/stores/chat'
 
-defineProps<{
-  request: PermissionRequestMessage
+const props = defineProps<{
+  request: PermissionArtifact
 }>()
 
-defineEmits<{
-  respond: [requestId: string, choice: 'ALLOW_ONCE' | 'ALLOW_SESSION' | 'ALLOW_ALWAYS' | 'DENY']
-}>()
+const chatStore = useChatStore()
+
+// 处理响应
+function handleRespond(choice: string) {
+  chatStore.respondPermission(props.request.id, choice as any)
+}
 
 // 按钮样式映射
 const getButtonStyle = (style: string) => {
@@ -103,5 +107,31 @@ const getButtonStyle = (style: string) => {
 
 .permission-btn:active {
   transform: translateY(0);
+}
+
+/* 过渡动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

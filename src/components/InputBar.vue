@@ -1,9 +1,6 @@
 <template>
   <div class="input-bar border-t bg-white p-4">
     <div class="max-w-4xl mx-auto">
-      <!-- 工具调用状态 -->
-      <ToolCalls v-if="toolCalls.length > 0" :toolCalls="toolCalls" class="mb-3" />
-
       <!-- 输入框 -->
       <div class="flex items-end space-x-3">
         <div class="flex-1 relative">
@@ -54,13 +51,11 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import ToolCalls from './ToolCalls.vue'
 
 const chatStore = useChatStore()
 const input = ref('')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
-const toolCalls = computed(() => chatStore.pendingToolCalls)
 const isThinking = computed(() => chatStore.isThinking)
 const disabled = computed(() => chatStore.hasPendingPermission)
 
@@ -78,7 +73,7 @@ const sendMessage = async () => {
   const content = input.value.trim()
   if (!content || isThinking.value) return
 
-  // 先清空输入框，再发送消息（不等待响应）
+  // 先清空输入框，再发送消息
   input.value = ''
   await nextTick()
   if (textareaRef.value) {

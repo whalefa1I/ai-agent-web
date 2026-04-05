@@ -1,261 +1,251 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { httpApi } from '@/services/http'
+import { happyApi, HappyApiService } from '@/services/happy-api'
 import type {
+  HappyArtifact,
+  MessageArtifact,
+  ToolCallArtifact,
+  PermissionArtifact,
   ChatMessageDTO,
-  ToolCallMessage,
-  PermissionRequestMessage,
   SessionStats
-} from '@/types/protocol'
+} from '@/types/happy-protocol'
 
 export const useChatStore = defineStore('chat', () => {
   // 状态
   const messages = ref<ChatMessageDTO[]>([])
-  const pendingToolCalls = ref<ToolCallMessage[]>([])
-  const pendingPermission = ref<PermissionRequestMessage | null>(null)
+  const pendingToolCalls = ref<ToolCallArtifact[]>([])
+  const pendingPermission = ref<PermissionArtifact | null>(null)
   const stats = ref<SessionStats | null>(null)
   const isThinking = ref(false)
-  const currentResponse = ref('')
-  const serverUrl = ref('')
+  const apiService = ref<HappyApiService>(new HappyApiService())
+  const stopPolling = ref<(() => void) | null>(null)
 
   // 计算属性
   const hasPendingPermission = computed(() => pendingPermission.value !== null)
   const hasPendingToolCalls = computed(() => pendingToolCalls.value.length > 0)
+  const serverUrl = computed(() => apiService.value.getServerUrl())
+  const sessionId = computed(() => apiService.value.getSessionId())
+  const userId = computed(() => apiService.value.getAccountId())
 
-  // 会话 ID 和用户 ID（用于 ToolState）
-  const sessionId = computed(() => {
-    // 从 localStorage 获取会话 ID
-    return localStorage.getItem('ai-agent-session-id') || `session_${Date.now()}`
-  })
-
-  const userId = computed(() => {
-    // 从 localStorage 获取用户 ID
-    return localStorage.getItem('ai-agent-user-id') || `user_${Date.now()}`
-  })
-
-  // 初始化服务器地址
+  /**
+   * 初始化服务器地址和轮询
+   */
   function initServerUrl() {
     const saved = localStorage.getItem('ai-agent-settings')
+    let url = 'http://localhost:8080'
+
     if (saved) {
       try {
         const settings = JSON.parse(saved)
-        serverUrl.value = settings.serverUrl || 'https://ai-agent-server-production-d28a.up.railway.app'
+        url = settings.serverUrl || 'http://localhost:8080'
       } catch (e) {
-        serverUrl.value = 'https://ai-agent-server-production-d28a.up.railway.app'
+        console.warn('解析设置失败，使用默认地址')
       }
-    } else {
-      serverUrl.value = 'https://ai-agent-server-production-d28a.up.railway.app'
+    }
+
+    apiService.value.setServerUrl(url)
+
+    // 启动轮询
+    startPolling()
+  }
+
+  /**
+   * 启动 artifacts 轮询
+   */
+  function startPolling() {
+    // 先停止之前的轮询
+    if (stopPolling.value) {
+      stopPolling.value()
+    }
+
+    stopPolling.value = apiService.value.startPolling(
+      // onArtifactsChange
+      (artifacts: HappyArtifact[]) => {
+        processArtifacts(artifacts)
+      },
+      // onArtifactUpdate
+      (artifact: HappyArtifact) => {
+        processNewArtifact(artifact)
+      }
+    )
+  }
+
+  /**
+   * 处理所有 artifacts
+   */
+  function processArtifacts(artifacts: HappyArtifact[]) {
+    // 提取消息
+    const userMessages = apiService.value.extractUserMessages(artifacts)
+    const assistantMessages = apiService.value.extractAssistantMessages(artifacts)
+
+    // 转换为 ChatMessageDTO
+    const newMessages: ChatMessageDTO[] = [
+      ...userMessages.map(m => ({
+        id: m.id,
+        type: 'USER' as const,
+        content: m.body.content,
+        timestamp: new Date(m.createdAt).toISOString()
+      })),
+      ...assistantMessages.map(m => ({
+        id: m.id,
+        type: 'ASSISTANT' as const,
+        content: m.body.content,
+        timestamp: new Date(m.createdAt).toISOString(),
+        inputTokens: m.body.inputTokens,
+        outputTokens: m.body.outputTokens
+      }))
+    ]
+
+    // 按时间排序
+    newMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
+    messages.value = newMessages
+
+    // 提取工具调用
+    const toolCalls = apiService.value.extractToolCalls(artifacts)
+    pendingToolCalls.value = toolCalls.filter(tc => tc.body.status !== 'completed' && tc.body.status !== 'failed')
+
+    // 提取权限请求
+    const permissions = apiService.value.extractPendingPermissions(artifacts)
+    pendingPermission.value = permissions.length > 0 ? permissions[0] : null
+  }
+
+  /**
+   * 处理新 artifact
+   */
+  function processNewArtifact(artifact: HappyArtifact) {
+    try {
+      const header = apiService.value.parseHeader(artifact)
+
+      if (header.type === 'message') {
+        // 新消息，重新加载所有消息
+        apiService.value.getArtifacts().then(artifacts => processArtifacts(artifacts))
+      } else if (header.type === 'tool-call') {
+        // 新工具调用
+        const toolCall = { ...artifact, header, body: apiService.value.parseBody(artifact) } as ToolCallArtifact
+        const index = pendingToolCalls.value.findIndex(tc => tc.id === artifact.id)
+        if (index >= 0) {
+          pendingToolCalls.value[index] = toolCall
+        } else {
+          pendingToolCalls.value.push(toolCall)
+        }
+      } else if (header.type === 'permission') {
+        // 新权限请求
+        const permission = { ...artifact, header, body: apiService.value.parseBody(artifact) } as PermissionArtifact
+        if (!permission.body.response) {
+          pendingPermission.value = permission
+        }
+      }
+    } catch (error) {
+      console.error('处理新 artifact 失败:', error)
     }
   }
 
-  // 添加用户消息
+  /**
+   * 添加用户消息 (本地 optimistic update)
+   */
   function addUserMessage(content: string) {
     messages.value.push({
-      id: `msg_${Date.now()}`,
+      id: `local-${Date.now()}`,
       type: 'USER',
       content,
       timestamp: new Date().toISOString()
     })
   }
 
-  // 添加助手消息
+  /**
+   * 添加助手消息 (本地)
+   */
   function addAssistantMessage(content: string) {
     messages.value.push({
-      id: `msg_${Date.now()}`,
+      id: `local-${Date.now()}`,
       type: 'ASSISTANT',
       content,
       timestamp: new Date().toISOString()
     })
   }
 
-  // 更新助手消息（流式）
-  function updateAssistantMessage(content: string, replace: boolean = false) {
-    const idx = messages.value.length - 1
-    const lastMessage = messages.value[idx]
-    if (lastMessage && lastMessage.type === 'ASSISTANT') {
-      if (replace) {
-        // 替换为完整内容（用于 RESPONSE_COMPLETE）
-        messages.value[idx] = { ...lastMessage, content }
-      } else {
-        // 累加内容（用于 TEXT_DELTA）
-        messages.value[idx] = { ...lastMessage, content: lastMessage.content + content }
-      }
-    } else {
-      addAssistantMessage(content)
-    }
-  }
-
-  // 添加工具调用
-  function addToolCall(toolCall: ToolCallMessage) {
-    const index = pendingToolCalls.value.findIndex(tc => tc.toolCallId === toolCall.toolCallId)
-    if (index >= 0) {
-      pendingToolCalls.value[index] = toolCall
-    } else {
-      pendingToolCalls.value.push(toolCall)
-    }
-  }
-
-  // 更新工具调用状态
-  function updateToolCall(toolCallId: string, updates: Partial<ToolCallMessage>) {
-    const index = pendingToolCalls.value.findIndex(tc => tc.toolCallId === toolCallId)
-    if (index >= 0) {
-      pendingToolCalls.value[index] = { ...pendingToolCalls.value[index], ...updates }
-    }
-  }
-
-  // 清除工具调用
-  function clearToolCalls() {
-    pendingToolCalls.value = []
-  }
-
-  // 设置权限请求
-  function setPermissionRequest(request: PermissionRequestMessage) {
-    pendingPermission.value = request
-  }
-
-  // 清除权限请求
-  function clearPermissionRequest() {
-    pendingPermission.value = null
-  }
-
-  // 更新统计
-  function updateStats(newStats: SessionStats) {
-    stats.value = newStats
-  }
-
-  // 发送消息（HTTP API）
+  /**
+   * 发送消息
+   */
   async function sendMessage(content: string) {
     if (!content.trim()) return
 
     addUserMessage(content)
     isThinking.value = true
-    currentResponse.value = ''
 
     try {
-      // 使用流式 SSE 方式
-      const url = `${serverUrl.value}/api/v2/chat/stream?message=${encodeURIComponent(content)}`
+      // 创建 user message artifact
+      await apiService.value.sendMessage(content)
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Accept': 'text/event-stream' }
-      })
-
-      if (!response.body) {
-        throw new Error('响应体为空')
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let hasAssistantMessage = false
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          // 处理 SSE data: 行（兼容有空格和没有空格的情况）
-          if (line.startsWith('data:')) {
-            const jsonStr = line.slice(5).trim()  // 去掉 'data:' 并去除前后空格
-            if (!jsonStr) continue  // 跳过空的 data: 行
-            const data = JSON.parse(jsonStr)
-
-            if (data.type === 'TEXT_DELTA') {
-              // 文本增量
-              if (!hasAssistantMessage) {
-                addAssistantMessage(data.delta)
-                hasAssistantMessage = true
-              } else {
-                updateAssistantMessage(data.delta)
-              }
-              currentResponse.value += data.delta
-            } else if (data.type === 'RESPONSE_START') {
-              // 响应开始 - 创建空消息
-              if (!hasAssistantMessage) {
-                addAssistantMessage('')
-                hasAssistantMessage = true
-              }
-            } else if (data.type === 'RESPONSE_COMPLETE') {
-              // 响应完成 - 如果有完整内容，确保显示
-              isThinking.value = false
-              clearToolCalls()
-              // 如果后端返回了完整 content
-              if (data.content) {
-                if (!hasAssistantMessage) {
-                  // 前面没有消息，创建新消息
-                  addAssistantMessage(data.content)
-                  hasAssistantMessage = true
-                } else {
-                  // 前面已有消息（RESPONSE_START 创建了空消息），替换为完整内容
-                  updateAssistantMessage(data.content, true)
-                }
-              }
-            } else if (data.type === 'TOOL_CALL') {
-              addToolCall({
-                toolCallId: data.toolCallId || `tool_${Date.now()}`,
-                toolName: data.toolName,
-                toolDisplayName: data.toolName,
-                icon: 'tool',
-                input: data.input,
-                status: 'started',
-                type: 'TOOL_CALL'
-              })
-            } else if (data.type === 'ERROR') {
-              addAssistantMessage(`错误：${data.message || '未知错误'}`)
-              isThinking.value = false
-            }
-          }
-        }
-      }
+      // 轮询会自动获取新消息
+      // 不需要手动处理响应，Happy 模式下由 AI 服务创建 assistant message artifact
     } catch (error) {
       console.error('发送消息失败:', error)
       isThinking.value = false
-      addAssistantMessage(`错误：${error instanceof Error ? error.message : '未知错误'}`)
+      addAssistantMessage(`错误：${error instanceof Error ? error.message : '发送失败'}`)
     }
   }
 
-  // 响应权限请求（HTTP API）
+  /**
+   * 响应权限请求
+   */
   async function respondPermission(
     requestId: string,
     choice: 'ALLOW_ONCE' | 'ALLOW_SESSION' | 'ALLOW_ALWAYS' | 'DENY'
   ) {
-    await fetch(`${serverUrl.value}/api/v2/permissions/respond`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId, choice })
-    })
-    clearPermissionRequest()
+    if (!pendingPermission.value) return
+
+    try {
+      await apiService.value.respondPermission(requestId, choice, pendingPermission.value.bodyVersion)
+      pendingPermission.value = null
+    } catch (error) {
+      console.error('响应权限失败:', error)
+    }
   }
 
-  // 获取历史消息
+  /**
+   * 获取历史消息
+   */
   async function loadHistory(limit: number = 50) {
     try {
-      const res = await fetch(`${serverUrl.value}/api/v2/messages?limit=${limit}`)
-      const data = await res.json()
-      messages.value = data
+      const artifacts = await apiService.value.getArtifacts()
+      processArtifacts(artifacts)
     } catch (error) {
       console.error('加载历史失败:', error)
     }
   }
 
-  // 获取统计
+  /**
+   * 获取统计
+   */
   async function loadStats() {
     try {
-      const res = await fetch(`${serverUrl.value}/api/v2/stats`)
-      const data = await res.json()
-      stats.value = data
+      // TODO: 实现统计 API
+      // const res = await fetch(`${apiService.value.getServerUrl()}/api/v2/stats`)
+      // stats.value = await res.json()
     } catch (error) {
       console.error('加载统计失败:', error)
     }
   }
 
-  // 更新服务器地址
+  /**
+   * 更新服务器地址
+   */
   function updateServerUrl(newUrl: string) {
-    serverUrl.value = newUrl
+    apiService.value.setServerUrl(newUrl)
+    localStorage.setItem('ai-agent-settings', JSON.stringify({ serverUrl: newUrl }))
+    startPolling() // 重启轮询
+  }
+
+  /**
+   * 清理
+   */
+  function cleanup() {
+    if (stopPolling.value) {
+      stopPolling.value()
+      stopPolling.value = null
+    }
   }
 
   return {
@@ -265,28 +255,19 @@ export const useChatStore = defineStore('chat', () => {
     pendingPermission,
     stats,
     isThinking,
-    currentResponse,
     serverUrl,
+    sessionId,
+    userId,
     // 计算属性
     hasPendingPermission,
     hasPendingToolCalls,
-    sessionId,
-    userId,
     // 方法
-    addUserMessage,
-    addAssistantMessage,
-    updateAssistantMessage,
-    addToolCall,
-    updateToolCall,
-    clearToolCalls,
-    setPermissionRequest,
-    clearPermissionRequest,
-    updateStats,
+    initServerUrl,
     sendMessage,
     respondPermission,
-    initServerUrl,
     loadHistory,
     loadStats,
-    updateServerUrl
+    updateServerUrl,
+    cleanup
   }
 })
