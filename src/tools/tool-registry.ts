@@ -71,14 +71,14 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'file',
     minimal: true,
     extractTitle: (input) => {
-      const path = input.path as string
+      const path = (input.path as string) || (input.file_path as string)
       if (!path) return '读取文件'
       // 提取文件名
       const parts = path.split(/[\\/]/)
       return parts[parts.length - 1] || '读取文件'
     },
     extractDescription: (input) => {
-      const path = input.path as string
+      const path = (input.path as string) || (input.file_path as string)
       const offset = input.offset as number
       const limit = input.limit as number
       let desc = path
@@ -113,14 +113,17 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'edit',
     minimal: false,
     extractTitle: (input) => {
-      const path = input.path as string
+      const path = (input.path as string) || (input.file_path as string)
       if (!path) return '编辑文件'
       const parts = path.split(/[\\/]/)
       return parts[parts.length - 1] || '编辑文件'
     },
     extractDescription: (input) => {
-      const path = input.path as string
-      return `编辑：${path}`
+      const path = (input.path as string) || (input.file_path as string)
+      const oldText = (input.oldText as string) || (input.old_string as string) || ''
+      const newText = (input.newText as string) || (input.new_string as string) || ''
+      const snippet = oldText ? `"${oldText.substring(0, 20)}${oldText.length > 20 ? '...' : ''}" → "${newText.substring(0, 20)}${newText.length > 20 ? '...' : ''}"` : ''
+      return path ? `编辑：${path}${snippet ? ' ' + snippet : ''}` : '编辑文件'
     }
   },
 
