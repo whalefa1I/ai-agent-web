@@ -150,11 +150,13 @@ export interface ErrorMessage extends ServerMessage {
 // 聊天消息
 export interface ChatMessageDTO {
   id: string
-  type: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL'
+  type: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL' | 'TODO' | 'THINKING'
   content: string
   timestamp: string
   inputTokens?: number
   outputTokens?: number
+  toolCall?: any  // ToolCallArtifact
+  todo?: any      // TodoArtifact
 }
 
 // 历史消息

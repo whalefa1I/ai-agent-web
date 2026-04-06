@@ -14,6 +14,16 @@
  * - headerVersion/bodyVersion: 乐观并发控制
  */
 
+import type {
+  HappyArtifact,
+  HappyArtifactHeader,
+  HappyArtifactBody,
+  MessageArtifact,
+  ToolCallArtifact,
+  PermissionArtifact,
+  TodoArtifact
+} from '@/types/happy-protocol'
+
 // 配置
 // 开发环境使用 Vite 代理 (见 vite.config.ts)，生产环境使用环境变量
 const DEFAULT_SERVER_URL = (import.meta as any).env?.VITE_API_BASE_URL || ''

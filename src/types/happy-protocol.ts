@@ -191,7 +191,7 @@ export interface Metadata {
 
 export interface ToolDefinition {
   title?: string | ((opts: { metadata: Metadata | null; tool: ToolCall }) => string);
-  icon: (size: number, color: string) => React.ReactNode;
+  icon: (size: number, color: string) => any;  // 使用 any 替代 React.ReactNode
   noStatus?: boolean;
   hideDefaultError?: boolean;
   hidden?: boolean;
@@ -209,3 +209,82 @@ export interface ToolDefinition {
 export interface KnownTools {
   [name: string]: ToolDefinition;
 }
+
+// ==================== Artifact 核心类型 (后端 Happy 协议) ====================
+
+// Artifact 头接口
+export interface HappyArtifactHeader {
+  type: 'message' | 'tool-call' | 'permission' | 'todo' | string;
+  subtype: string;
+  title?: string;
+  timestamp?: number;
+  status?: string;
+  [key: string]: unknown;
+}
+
+// Artifact 体接口
+export interface HappyArtifactBody {
+  type?: string;
+  content?: string;
+  [key: string]: unknown;
+}
+
+// Artifact 主接口
+export interface HappyArtifact {
+  id: string;
+  accountId: string;
+  sessionId: string;
+  header: string;  // Base64 编码的 JSON
+  body: string;    // Base64 编码的 JSON
+  dataEncryptionKey: string;
+  headerVersion: number;
+  bodyVersion: number;
+  seq: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ==================== 特定 Artifact 类型 (解码后) ====================
+
+// Message Artifact (用户/助手消息) - 解码后的类型
+export interface MessageArtifactDecoded {
+  id: string;
+  header: HappyArtifactHeader & { type: 'message'; subtype: 'user-message' | 'assistant-message' };
+  body: HappyArtifactBody & { type: 'user-message' | 'assistant-message'; content: string };
+}
+
+// Tool Call Artifact - 解码后的类型
+export interface ToolCallArtifactDecoded {
+  id: string;
+  header: HappyArtifactHeader & { type: 'tool-call' };
+  body: HappyArtifactBody & { type: 'tool-call'; status: string; input?: Record<string, unknown>; output?: unknown };
+}
+
+// Permission Artifact - 解码后的类型
+export interface PermissionArtifactDecoded {
+  id: string;
+  header: HappyArtifactHeader & { type: 'permission' };
+  body: HappyArtifactBody & { type: 'permission'; choice?: string; response?: string };
+}
+
+// Todo Artifact - 解码后的类型
+export interface TodoArtifactDecoded {
+  id: string;
+  header: TodoArtifactHeader;
+  body: HappyArtifactBody & { type: 'todo'; items?: unknown[] };
+}
+
+export interface TodoArtifactHeader extends HappyArtifactHeader {
+  type: 'todo';
+  subtype: 'todo-add' | 'todo-update' | 'todo-complete' | string;
+}
+
+// 为向后兼容，保留原来的类型名（与 HappyArtifact 交叉）
+export type MessageArtifact = HappyArtifact & MessageArtifactDecoded
+export type ToolCallArtifact = HappyArtifact & ToolCallArtifactDecoded
+export type PermissionArtifact = HappyArtifact & PermissionArtifactDecoded
+export type TodoArtifact = HappyArtifact & TodoArtifactDecoded
+
+// ==================== 从 protocol.ts 重新导出常用类型 ====================
+
+export type { ChatMessageDTO, SessionStats } from './protocol'
