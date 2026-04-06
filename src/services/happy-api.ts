@@ -25,9 +25,11 @@ import type {
 } from '@/types/happy-protocol'
 
 // 配置
-const DEFAULT_SERVER_URL = 'http://localhost:8080'
+// 开发环境使用 Vite 代理 (见 vite.config.ts)，生产环境使用环境变量
+const DEFAULT_SERVER_URL = import.meta.env.VITE_API_BASE_URL || ''
 const ACCOUNT_ID_KEY = 'happy-account-id'
 const SESSION_ID_KEY = 'happy-session-id'
+const API_KEY_KEY = 'happy-api-key'
 
 /**
  * 生成唯一 ID
@@ -58,6 +60,34 @@ function getSessionId(): string {
     localStorage.setItem(SESSION_ID_KEY, id)
   }
   return id
+}
+
+/**
+ * 获取或创建 API Key（匿名）
+ */
+async function getApiKey(serverUrl: string): Promise<string> {
+  let key: string = localStorage.getItem(API_KEY_KEY) || ''
+  if (!key) {
+    // 调用后端 API 生成匿名 Key
+    try {
+      const res = await fetch(`${serverUrl}/api/auth/apikey/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      if (!res.ok) {
+        throw new Error(`Failed to generate API Key: ${res.status}`)
+      }
+      const data: { apiKey: string; keyPrefix: string } = await res.json()
+      key = data.apiKey
+      localStorage.setItem(API_KEY_KEY, key)
+      console.log('[HappyAPI] Generated anonymous API Key:', data.keyPrefix)
+    } catch (error) {
+      console.error('[HappyAPI] Failed to generate API Key:', error)
+      // 如果生成失败，使用一个临时的 key（可能会被后端拒绝）
+      key = `temp-key-${Date.now()}`
+    }
+  }
+  return key
 }
 
 /**
@@ -122,13 +152,20 @@ export class HappyApiService {
   private serverUrl: string
   private accountId: string
   private sessionId: string
+  private apiKey: string | null = null
   private pollingTimer: number | null = null
   private pollingInterval: number = 500 // 500ms 轮询一次（支持流式输出）
 
   constructor(serverUrl: string = DEFAULT_SERVER_URL) {
-    this.serverUrl = serverUrl.replace(/\/$/, '')
+    // 如果 serverUrl 为空（生产环境），使用空字符串，请求会使用相对路径由浏览器发送到当前域名
+    // 开发环境下 Vite 代理会转发 /api 请求到 Railway
+    this.serverUrl = serverUrl ? serverUrl.replace(/\/$/, '') : ''
     this.accountId = getAccountId()
     this.sessionId = getSessionId()
+    // 异步获取 API Key
+    getApiKey(this.serverUrl).then(key => {
+      this.apiKey = key
+    })
   }
 
   /**
@@ -143,6 +180,16 @@ export class HappyApiService {
    */
   getServerUrl(): string {
     return this.serverUrl
+  }
+
+  /**
+   * 获取 API Key（从 localStorage 或生成新的）
+   */
+  private async getApiKeyHeader(): Promise<Record<string, string>> {
+    if (!this.apiKey) {
+      this.apiKey = await getApiKey(this.serverUrl)
+    }
+    return { 'X-API-Key': this.apiKey }
   }
 
   /**
@@ -172,7 +219,9 @@ export class HappyApiService {
    */
   async getArtifacts(): Promise<HappyArtifact[]> {
     const url = `${this.serverUrl}/api/v1/artifacts?accountId=${encodeURIComponent(this.accountId)}`
-    const res = await fetch(url)
+    const res = await fetch(url, {
+      headers: await this.getApiKeyHeader()
+    })
     if (!res.ok) {
       throw new Error(`Failed to get artifacts: ${res.status}`)
     }
@@ -185,7 +234,9 @@ export class HappyApiService {
    */
   async getArtifact(id: string): Promise<HappyArtifact | null> {
     const url = `${this.serverUrl}/api/v1/artifacts/${id}?accountId=${encodeURIComponent(this.accountId)}`
-    const res = await fetch(url)
+    const res = await fetch(url, {
+      headers: await this.getApiKeyHeader()
+    })
     if (res.status === 404) {
       return null
     }
@@ -229,7 +280,10 @@ export class HappyApiService {
 
     const res = await fetch(`${this.serverUrl}/api/v1/artifacts`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await this.getApiKeyHeader())
+      },
       body: JSON.stringify(artifact)
     })
 
@@ -259,7 +313,10 @@ export class HappyApiService {
 
     const res = await fetch(`${this.serverUrl}/api/v1/artifacts/${artifactId}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await this.getApiKeyHeader())
+      },
       body: JSON.stringify(updateBody)
     })
 
@@ -299,7 +356,10 @@ export class HappyApiService {
 
     const res = await fetch(`${this.serverUrl}/api/v1/artifacts/${artifactId}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await this.getApiKeyHeader())
+      },
       body: JSON.stringify(updateBody)
     })
 
@@ -315,7 +375,10 @@ export class HappyApiService {
    */
   async deleteArtifact(id: string): Promise<void> {
     const url = `${this.serverUrl}/api/v1/artifacts/${id}?accountId=${encodeURIComponent(this.accountId)}`
-    const res = await fetch(url, { method: 'DELETE' })
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: await this.getApiKeyHeader()
+    })
     if (!res.ok) {
       throw new Error(`Failed to delete artifact: ${res.status}`)
     }
