@@ -236,8 +236,10 @@ const selectCommand = (cmd: SlashCommand) => {
   nextTick(() => {
     textareaRef.value?.focus()
     // 设置光标位置到命令后面
-    const newPos = before.length + cmd.name.length + 2 // +2 for '/' and ' '
-    textareaRef.value.setSelectionRange(newPos, newPos)
+    if (textareaRef.value) {
+      const newPos = before.length + cmd.name.length + 2 // +2 for '/' and ' '
+      textareaRef.value.setSelectionRange(newPos, newPos)
+    }
   })
 }
 

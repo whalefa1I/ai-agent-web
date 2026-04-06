@@ -70,6 +70,13 @@ import TodoView from '@/tools/views/TodoView.vue'
 import BashView from '@/tools/views/BashView.vue'
 import EditView from '@/tools/views/EditView.vue'
 import FileReadView from '@/tools/views/FileReadView.vue'
+import TaskView from '@/tools/views/TaskView.vue'
+import AskUserQuestionView from '@/tools/views/AskUserQuestionView.vue'
+import ExitPlanModeView from '@/tools/views/ExitPlanModeView.vue'
+import LSView from '@/tools/views/LSView.vue'
+import MultiEditView from '@/tools/views/MultiEditView.vue'
+import McpServerView from '@/tools/views/McpServerView.vue'
+import SkillsView from '@/tools/views/SkillsView.vue'
 
 const props = defineProps<{
   toolCalls: ToolCallArtifact[]
@@ -90,6 +97,35 @@ const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
       return EditView
     case 'file_read':
       return FileReadView
+    // Task 工具集
+    case 'TaskCreate':
+    case 'TaskList':
+    case 'TaskGet':
+    case 'TaskUpdate':
+    case 'TaskStop':
+    case 'TaskOutput':
+      return TaskView
+    // AskUserQuestion 工具
+    case 'AskUserQuestion':
+      return AskUserQuestionView
+    // ExitPlanMode 工具
+    case 'ExitPlanMode':
+      return ExitPlanModeView
+    // LS 工具
+    case 'ls':
+      return LSView
+    // MultiEdit 工具
+    case 'multi_edit':
+      return MultiEditView
+    // MCP 工具
+    case 'mcp_connect':
+    case 'mcp_disconnect':
+      return McpServerView
+    // Skills 工具
+    case 'skill_install':
+    case 'skill_uninstall':
+    case 'skill_search':
+      return SkillsView
     default:
       return null
   }
