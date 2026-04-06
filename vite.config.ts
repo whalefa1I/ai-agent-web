@@ -13,7 +13,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'https://ai-agent-server-production-d28a.up.railway.app',
+        target: 'http://localhost:8080',
         changeOrigin: true
       }
     }

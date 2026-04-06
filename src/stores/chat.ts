@@ -200,23 +200,15 @@ export const useChatStore = defineStore('chat', () => {
           }
         })
       } else if (header.type === 'tool-call') {
-        // 新工具调用或工具状态更新
-        const toolCall = { ...artifact, header, body: apiService.value.parseBody(artifact) } as ToolCallArtifact
-        const index = pendingToolCalls.value.findIndex(tc => tc.id === artifact.id)
-        if (index >= 0) {
-          pendingToolCalls.value[index] = toolCall
-        } else {
-          pendingToolCalls.value.push(toolCall)
-        }
+        // 新工具调用或工具状态更新，重新加载所有消息以更新聊天流
+        apiService.value.getArtifacts().then(artifacts => {
+          processArtifacts(artifacts)
+        })
       } else if (header.type === 'todo') {
-        // 新待办事项或待办状态更新
-        const todo = { ...artifact, header: header as TodoArtifactHeader, body: apiService.value.parseBody(artifact) } as TodoArtifact
-        const index = todos.value.findIndex(t => t.id === artifact.id)
-        if (index >= 0) {
-          todos.value[index] = todo
-        } else {
-          todos.value.push(todo)
-        }
+        // 新待办事项或待办状态更新，重新加载所有消息以更新聊天流
+        apiService.value.getArtifacts().then(artifacts => {
+          processArtifacts(artifacts)
+        })
       } else if (header.type === 'permission') {
         // 新权限请求
         const permission = { ...artifact, header, body: apiService.value.parseBody(artifact) } as PermissionArtifact
