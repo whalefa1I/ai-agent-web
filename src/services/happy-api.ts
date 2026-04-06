@@ -14,19 +14,9 @@
  * - headerVersion/bodyVersion: 乐观并发控制
  */
 
-import type {
-  HappyArtifact,
-  HappyArtifactHeader,
-  HappyArtifactBody,
-  ToolCallArtifact,
-  MessageArtifact,
-  PermissionArtifact,
-  TodoArtifact
-} from '@/types/happy-protocol'
-
 // 配置
 // 开发环境使用 Vite 代理 (见 vite.config.ts)，生产环境使用环境变量
-const DEFAULT_SERVER_URL = import.meta.env.VITE_API_BASE_URL || ''
+const DEFAULT_SERVER_URL = (import.meta as any).env?.VITE_API_BASE_URL || ''
 const ACCOUNT_ID_KEY = 'happy-account-id'
 const SESSION_ID_KEY = 'happy-session-id'
 const API_KEY_KEY = 'happy-api-key'
