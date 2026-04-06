@@ -46,7 +46,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { ToolCall, ToolDefinition, Message } from '@/types/happy-protocol';
+import type { ToolCall, ToolDefinition, Message, Metadata } from '@/types/happy-protocol';
 import { getToolDefinition } from '@/tools/registry/known-tools';
 import StatusIndicator from './StatusIndicator.vue';
 

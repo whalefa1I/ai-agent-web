@@ -5,8 +5,8 @@
  */
 
 import type { ToolCall, Message, BackendArtifact } from '@/types/happy-protocol';
-import { artifactsToMessages, sortMessagesByTime } from './transformers/artifact-transformer';
-import { fetchSessionArtifacts, fetchArtifacts } from './api/artifact-api';
+import { artifactsToMessages, sortMessagesByTime } from '../transformers/artifact-transformer';
+import { fetchSessionArtifacts, fetchArtifacts } from '../api/artifact-api';
 
 export interface ToolState {
     /** 当前会话 ID */

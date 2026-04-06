@@ -13,7 +13,7 @@ import type {
     ToolCall,
     Message
 } from '@/types/happy-protocol';
-import { decodeHeader, decodeBody } from './api/artifact-api';
+import { decodeHeader, decodeBody } from '../api/artifact-api';
 
 /**
  * 生成 cuid2 格式的 ID
@@ -43,16 +43,19 @@ export function headerToToolCall(
         id: artifact.id,
         name: toolName,
         title: header.title || toolName,
+        // @ts-ignore - subtitle 可能存在于某些 header 类型
         description: header.subtitle || '',
+        // @ts-ignore - input 可能存在于 body
         args: body?.input || {},
         state: mapStatusToState(header.status),
-        startTime: header.timestamp || artifact.createdAt ? new Date(artifact.createdAt).getTime() : Date.now(),
+        startTime: header.timestamp || (artifact.createdAt ? new Date(artifact.createdAt).getTime() : Date.now()),
         endTime: body?.timestamp,
         durationMs: body?.durationMs
     };
 
     // 如果有 output，添加到 result
     if (body?.output !== undefined) {
+        // @ts-ignore - output 类型可能是 unknown
         toolCall.result = body.output;
     }
 

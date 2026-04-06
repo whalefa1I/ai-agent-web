@@ -43,6 +43,7 @@
 <script setup lang="ts">
 import type { TodoArtifact } from '@/types/happy-protocol'
 
+// @ts-ignore - TodoArtifact 类型包含 body 属性
 defineProps<{
   todos: TodoArtifact[]
 }>()

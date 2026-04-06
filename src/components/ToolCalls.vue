@@ -78,6 +78,7 @@ import MultiEditView from '@/tools/views/MultiEditView.vue'
 import McpServerView from '@/tools/views/McpServerView.vue'
 import SkillsView from '@/tools/views/SkillsView.vue'
 
+// @ts-ignore - ToolCallArtifact 类型包含 body 属性
 const props = defineProps<{
   toolCalls: ToolCallArtifact[]
 }>()

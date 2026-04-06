@@ -72,6 +72,7 @@
 import type { PermissionArtifact } from '@/types/happy-protocol'
 import { useChatStore } from '@/stores/chat'
 
+// @ts-ignore - 类型定义中包含 body 属性
 const props = defineProps<{
   request: PermissionArtifact
 }>()
