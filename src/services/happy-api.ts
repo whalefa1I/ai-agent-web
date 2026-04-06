@@ -40,13 +40,17 @@ function generateId(): string {
 
 /**
  * 获取或创建账户 ID (持久化到 localStorage)
+ * 优先使用从后端 API 返回的 userId，如果没有则使用本地生成的 ID
  */
 function getAccountId(): string {
+  // 先检查是否已经有 accountId（从后端 API 保存的）
   let id = localStorage.getItem(ACCOUNT_ID_KEY)
-  if (!id) {
-    id = `account-${Date.now()}`
-    localStorage.setItem(ACCOUNT_ID_KEY, id)
+  if (id) {
+    return id
   }
+  // 如果没有，生成一个新的
+  id = `account-${Date.now()}`
+  localStorage.setItem(ACCOUNT_ID_KEY, id)
   return id
 }
 
@@ -64,6 +68,7 @@ function getSessionId(): string {
 
 /**
  * 获取或创建 API Key（匿名）
+ * 同时会更新 accountId 为后端返回的 userId
  */
 async function getApiKey(serverUrl: string): Promise<string> {
   let key: string = localStorage.getItem(API_KEY_KEY) || ''
@@ -77,14 +82,27 @@ async function getApiKey(serverUrl: string): Promise<string> {
       if (!res.ok) {
         throw new Error(`Failed to generate API Key: ${res.status}`)
       }
-      const data: { apiKey: string; keyPrefix: string } = await res.json()
+      const data: { apiKey: string; keyPrefix: string; userId: string } = await res.json()
       key = data.apiKey
       localStorage.setItem(API_KEY_KEY, key)
+      // 同时保存 userId 为 accountId，确保前后端使用相同的账户 ID
+      if (data.userId) {
+        localStorage.setItem(ACCOUNT_ID_KEY, data.userId)
+        console.log('[HappyAPI] Saved userId as accountId:', data.userId)
+      }
       console.log('[HappyAPI] Generated anonymous API Key:', data.keyPrefix)
     } catch (error) {
       console.error('[HappyAPI] Failed to generate API Key:', error)
       // 如果生成失败，使用一个临时的 key（可能会被后端拒绝）
       key = `temp-key-${Date.now()}`
+    }
+  } else {
+    // API Key 已存在时，检查是否需要更新 accountId
+    // 如果 localStorage 中没有 accountId，生成一个新的
+    if (!localStorage.getItem(ACCOUNT_ID_KEY)) {
+      const id = `account-${Date.now()}`
+      localStorage.setItem(ACCOUNT_ID_KEY, id)
+      console.log('[HappyAPI] Created new accountId:', id)
     }
   }
   return key
@@ -160,11 +178,20 @@ export class HappyApiService {
     // 如果 serverUrl 为空（生产环境），使用空字符串，请求会使用相对路径由浏览器发送到当前域名
     // 开发环境下 Vite 代理会转发 /api 请求到 Railway
     this.serverUrl = serverUrl ? serverUrl.replace(/\/$/, '') : ''
-    this.accountId = getAccountId()
+    // 先获取 sessionId（不依赖 API Key）
     this.sessionId = getSessionId()
-    // 异步获取 API Key
+    // 获取或创建 accountId（如果已经有 API Key 保存的 userId，会使用它）
+    this.accountId = getAccountId()
+    // 异步获取 API Key，并在获取后更新 accountId（如果后端返回了 userId）
     getApiKey(this.serverUrl).then(key => {
       this.apiKey = key
+      // 获取 API Key 后，再次检查 accountId 是否需要更新
+      // （因为 getApiKey 可能保存了后端返回的 userId）
+      const updatedAccountId = getAccountId()
+      if (updatedAccountId !== this.accountId) {
+        console.log('[HappyAPI] Updated accountId from API Key response:', updatedAccountId)
+        this.accountId = updatedAccountId
+      }
     })
   }
 
