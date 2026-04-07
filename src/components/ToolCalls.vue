@@ -7,10 +7,10 @@
         <div class="flex items-center space-x-2">
           <!-- 工具图标和状态 -->
           <span class="text-xl">{{ getToolIcon(toolCall) }}</span>
-          <span v-if="toolCall.body.status === 'started'" class="status-icon">⏳</span>
-          <span v-else-if="toolCall.body.status === 'in_progress'" class="status-icon">🔄</span>
-          <span v-else-if="toolCall.body.status === 'completed'" class="status-icon">✅</span>
-          <span v-else-if="toolCall.body.status === 'failed'" class="status-icon">❌</span>
+          <span v-if="getToolState(toolCall) === 'started'" class="status-icon">⏳</span>
+          <span v-else-if="getToolState(toolCall) === 'in_progress'" class="status-icon">🔄</span>
+          <span v-else-if="getToolState(toolCall) === 'completed'" class="status-icon">✅</span>
+          <span v-else-if="getToolState(toolCall) === 'failed'" class="status-icon">❌</span>
         </div>
 
         <div class="flex-1 min-w-0">
@@ -23,8 +23,8 @@
         </div>
 
         <!-- 执行时间 -->
-        <div v-if="toolCall.body.durationMs" class="text-xs text-gray-400">
-          {{ formatDuration(toolCall.body.durationMs) }}
+        <div v-if="getToolDuration(toolCall)" class="text-xs text-gray-400">
+          {{ formatDuration(getToolDuration(toolCall)) }}
         </div>
       </div>
 
@@ -36,7 +36,7 @@
       <!-- 默认输出展示（当没有专用视图时） -->
       <div v-if="!getToolViewComponent(toolCall)" class="default-output">
         <!-- 进度条 -->
-        <div v-if="toolCall.body.progress" class="progress-bar">
+        <div v-if="toolCall.body?.progress" class="progress-bar">
           <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
             <div class="h-full bg-primary-500 transition-all duration-300"
                  :style="{ width: `${toolCall.body.progress}%` }"></div>
@@ -44,16 +44,16 @@
         </div>
 
         <!-- 输出内容（可折叠） -->
-        <details v-if="toolCall.body.status === 'completed' && toolCall.body.output" class="output-details">
+        <details v-if="getToolState(toolCall) === 'completed' && getToolOutput(toolCall)" class="output-details">
           <summary class="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
             查看输出 ({{ toolCall.body.outputType || 'text' }})
           </summary>
-          <pre class="output-pre">{{ formatOutput(toolCall.body.output) }}</pre>
+          <pre class="output-pre">{{ formatOutput(getToolOutput(toolCall)) }}</pre>
         </details>
 
         <!-- 错误信息 -->
-        <div v-if="toolCall.body.status === 'failed' && toolCall.body.error" class="error-message">
-          <span class="font-medium">错误：</span>{{ toolCall.body.error }}
+        <div v-if="getToolState(toolCall) === 'failed' && getToolError(toolCall)" class="error-message">
+          <span class="font-medium">错误：</span>{{ getToolError(toolCall) }}
         </div>
       </div>
     </div>
@@ -170,6 +170,55 @@ const formatDuration = (ms: number) => {
 const formatOutput = (output: any) => {
   if (typeof output === 'string') return output
   return JSON.stringify(output, null, 2)
+}
+
+// 获取工具状态（兼容多种格式）
+const getToolState = (toolCall: ToolCallArtifact): string => {
+  // 1. 优先从 body.status 获取
+  if (toolCall.body?.status) {
+    const status = toolCall.body.status
+    if (['started', 'running', 'executing'].includes(status)) return 'started'
+    if (['in_progress', 'in-progress'].includes(status)) return 'in_progress'
+    if (['completed', 'success'].includes(status)) return 'completed'
+    if (['failed', 'error'].includes(status)) return 'failed'
+  }
+  // 2. 从 body.error 判断是否失败
+  if (toolCall.body?.error) return 'failed'
+  // 3. 从 body.output 判断是否完成
+  if (toolCall.body?.output) return 'completed'
+  // 4. 默认当作完成（静态 artifact）
+  return 'completed'
+}
+
+// 获取工具输出（兼容多种格式）
+const getToolOutput = (toolCall: ToolCallArtifact): any => {
+  // 1. 直接从 body.output 获取
+  if (toolCall.body?.output) return toolCall.body.output
+  // 2. 从 metadata 中获取（后端 LocalToolResult 格式）
+  if (toolCall.body?.metadata) {
+    const metadata = toolCall.body.metadata
+    if (typeof metadata === 'object') {
+      // 尝试从 metadata 中提取结构化输出
+      return metadata.content || metadata.output || metadata
+    }
+  }
+  // 3. 从 body.content 获取
+  if (toolCall.body?.content) return toolCall.body.content
+  return null
+}
+
+// 获取工具错误信息
+const getToolError = (toolCall: ToolCallArtifact): string => {
+  if (toolCall.body?.error) return toolCall.body.error
+  if (toolCall.body?.message) return toolCall.body.message
+  return null
+}
+
+// 获取工具执行时长
+const getToolDuration = (toolCall: ToolCallArtifact): number | null => {
+  if (toolCall.body?.durationMs) return toolCall.body.durationMs
+  if (toolCall.body?.metadata?.durationMs) return toolCall.body.metadata.durationMs
+  return null
 }
 </script>
 

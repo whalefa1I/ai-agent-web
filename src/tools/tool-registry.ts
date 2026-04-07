@@ -296,14 +296,16 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     minimal: false,
     extractTitle: (input) => {
       const todos = input.todos as Array<{ content?: string; status?: string }>
-      if (!todos || todos.length === 0) return '待办事项'
+      // 防御性检查：确保 todos 是数组
+      if (!todos || !Array.isArray(todos) || todos.length === 0) return '待办事项'
       const count = todos.length
       const completed = todos.filter(t => t.status === 'completed').length
       return `待办 (${completed}/${count} 完成)`
     },
     extractDescription: (input) => {
       const todos = input.todos as Array<{ content?: string; status?: string }>
-      if (!todos || todos.length === 0) return ''
+      // 防御性检查：确保 todos 是数组
+      if (!todos || !Array.isArray(todos) || todos.length === 0) return ''
       // 显示新增或变更的 todo
       const changedTodos = todos
         .filter(t => t.content)

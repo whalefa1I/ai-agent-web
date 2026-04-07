@@ -1,13 +1,19 @@
 <template>
   <div class="file-read-view">
+    <!-- 错误信息 -->
+    <div v-if="errorMessage" class="file-error">
+      <span class="error-icon">❌</span>
+      <span class="error-text">{{ errorMessage }}</span>
+    </div>
+
     <!-- 文件信息 -->
-    <div v-if="filePath" class="file-info">
+    <div v-else-if="filePath" class="file-info">
       <span class="file-path">{{ filePath }}</span>
       <span v-if="lineInfo" class="line-info">{{ lineInfo }}</span>
     </div>
 
     <!-- 文件内容 -->
-    <div class="content-section">
+    <div v-else-if="!errorMessage" class="content-section">
       <pre class="file-content"><code>{{ content }}</code></pre>
     </div>
   </div>
@@ -24,6 +30,7 @@ const props = defineProps<{
 // 提取文件路径
 const filePath = computed(() => {
   return (props.toolCall.body?.input?.file_path as string) ||
+         (props.toolCall.body?.input?.path as string) ||
          props.toolCall.header?.inputSummary ||
          ''
 })
@@ -39,6 +46,11 @@ const lineInfo = computed(() => {
     return `从第 ${offset + 1} 行开始`
   }
   return ''
+})
+
+// 提取错误信息
+const errorMessage = computed(() => {
+  return props.toolCall.body?.error as string | null
 })
 
 // 提取内容
@@ -58,6 +70,28 @@ const content = computed(() => {
 <style scoped>
 .file-read-view {
   padding: 8px 0;
+}
+
+/* 错误信息 */
+.file-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+}
+
+.error-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.error-text {
+  font-size: 13px;
+  color: #dc2626;
+  word-break: break-all;
 }
 
 .file-info {

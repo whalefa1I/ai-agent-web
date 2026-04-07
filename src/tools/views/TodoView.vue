@@ -1,5 +1,6 @@
 <template>
   <div class="todo-view">
+    <!-- 待办事项列表 -->
     <div v-if="todos && todos.length > 0" class="todo-list">
       <div v-for="(todo, index) in todos" :key="todo.id || index" class="todo-item">
         <span class="todo-checkbox">{{ getCheckbox(todo.status) }}</span>
@@ -8,8 +9,22 @@
         </span>
       </div>
     </div>
+
+    <!-- 错误信息 -->
+    <div v-else-if="toolCall.body?.error" class="todo-error">
+      <span class="error-icon">❌</span>
+      <span class="error-text">{{ toolCall.body.error }}</span>
+    </div>
+
+    <!-- 输出内容 -->
     <div v-else-if="toolCall.body?.output" class="todo-output">
       <pre class="text-xs text-gray-600 whitespace-pre-wrap">{{ toolCall.body.output }}</pre>
+    </div>
+
+    <!-- 空状态 -->
+    <div v-else class="todo-empty">
+      <span class="empty-icon">📋</span>
+      <span class="empty-text">无待办事项</span>
     </div>
   </div>
 </template>
@@ -123,5 +138,59 @@ const getStatusClass = (status: string) => {
   font-size: 14px;
   line-height: 1.5;
   flex: 1;
+}
+
+/* 错误状态 */
+.todo-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+}
+
+.error-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.error-text {
+  font-size: 13px;
+  color: #dc2626;
+  word-break: break-all;
+}
+
+/* 输出内容 */
+.todo-output {
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.todo-output pre {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 空状态 */
+.todo-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: #9ca3af;
+}
+
+.empty-icon {
+  font-size: 16px;
+}
+
+.empty-text {
+  font-size: 13px;
+  font-style: italic;
 }
 </style>

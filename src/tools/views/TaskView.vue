@@ -1,24 +1,31 @@
 <template>
   <div class="task-view">
-    <!-- 任务列表模式：显示所有相关工具调用 -->
+    <!-- 任务工具信息 -->
     <div class="task-tools-container">
-      <div v-for="(toolItem, index) in visibleTools" :key="index" class="task-tool-item">
+      <div class="task-tool-item">
         <div class="task-tool-title">
-          <span class="task-tool-name">{{ toolItem.toolName }}</span>
-          <span class="task-tool-description">{{ toolItem.description }}</span>
+          <span class="task-tool-name">{{ toolName }}</span>
+          <span class="task-tool-description">{{ taskDescription }}</span>
         </div>
         <div class="task-tool-status">
-          <span v-if="toolItem.state === 'started'" class="status-icon" title="等待中">⏳</span>
-          <span v-else-if="toolItem.state === 'in_progress'" class="status-icon" title="进行中">🔄</span>
-          <span v-else-if="toolItem.state === 'completed'" class="status-icon" title="已完成">✅</span>
-          <span v-else-if="toolItem.state === 'failed'" class="status-icon" title="失败">❌</span>
+          <span v-if="toolState === 'started'" class="status-icon" title="等待中">⏳</span>
+          <span v-else-if="toolState === 'in_progress'" class="status-icon" title="进行中">🔄</span>
+          <span v-else-if="toolState === 'completed'" class="status-icon" title="已完成">✅</span>
+          <span v-else-if="toolState === 'failed'" class="status-icon" title="失败">❌</span>
         </div>
       </div>
+    </div>
 
-      <!-- 显示更多提示 -->
-      <div v-if="remainingCount > 0" class="task-more-item">
-        <span class="task-more-text">还有 {{ remainingCount }} 个任务工具...</span>
-      </div>
+    <!-- 错误信息 -->
+    <div v-if="toolState === 'failed' && errorMessage" class="task-error">
+      <span class="error-icon">❌</span>
+      <span class="error-text">{{ errorMessage }}</span>
+    </div>
+
+    <!-- 输出内容 -->
+    <div v-else-if="toolState === 'completed' && outputContent" class="task-output">
+      <div class="output-label">✅ 输出：</div>
+      <pre class="output-content">{{ outputContent }}</pre>
     </div>
   </div>
 </template>
@@ -31,32 +38,14 @@ const props = defineProps<{
   toolCall: ToolCallArtifact
 }>()
 
-// 提取所有任务相关的工具调用
-interface TaskToolItem {
-  toolName: string
-  description: string
-  state: string
-}
-
-// 从消息历史中提取任务工具
-const visibleTools = computed(() => {
-  // 这里简化处理，只显示当前工具调用的基本信息
-  const taskTool: TaskToolItem = {
-    toolName: props.toolCall.header?.subtype || props.toolCall.header?.toolName || 'Task',
-    description: extractDescription(props.toolCall),
-    state: props.toolCall.body?.status || 'completed'
-  }
-
-  return [taskTool]
-})
-
-const remainingCount = computed(() => {
-  return 0 // 简化版本，暂不计算
+// 提取工具名称
+const toolName = computed(() => {
+  return props.toolCall.header?.subtype || props.toolCall.header?.toolName || 'Task'
 })
 
 // 提取描述
-function extractDescription(toolCall: ToolCallArtifact): string {
-  const input = toolCall.body?.input
+const taskDescription = computed(() => {
+  const input = props.toolCall.body?.input
   if (!input) return ''
 
   // TaskCreate: 显示 subject
@@ -81,7 +70,41 @@ function extractDescription(toolCall: ToolCallArtifact): string {
   }
 
   return ''
-}
+})
+
+// 提取工具状态
+const toolState = computed(() => {
+  const status = props.toolCall.body?.status
+  if (status === 'started' || status === 'running' || status === 'executing') return 'started'
+  if (status === 'in_progress' || status === 'in-progress') return 'in_progress'
+  if (status === 'completed' || status === 'success') return 'completed'
+  if (status === 'failed' || status === 'error') return 'failed'
+  // 从 error/output 判断
+  if (props.toolCall.body?.error) return 'failed'
+  if (props.toolCall.body?.output) return 'completed'
+  return 'completed'
+})
+
+// 提取错误信息
+const errorMessage = computed(() => {
+  return props.toolCall.body?.error || null
+})
+
+// 提取输出内容
+const outputContent = computed(() => {
+  const output = props.toolCall.body?.output
+  if (!output) return null
+
+  // 如果 output 是字符串，直接返回
+  if (typeof output === 'string') return output
+
+  // 如果 output 是对象，尝试格式化为 JSON
+  try {
+    return JSON.stringify(output, null, 2)
+  } catch {
+    return String(output)
+  }
+})
 </script>
 
 <style scoped>
@@ -145,5 +168,53 @@ function extractDescription(toolCall: ToolCallArtifact): string {
 
 .task-more-text {
   color: #6b7280;
+}
+
+/* 错误信息 */
+.task-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: #fef2f2;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+}
+
+.error-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.error-text {
+  font-size: 13px;
+  color: #dc2626;
+  word-break: break-all;
+}
+
+/* 输出内容 */
+.task-output {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.output-label {
+  font-size: 12px;
+  color: #16a34a;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.output-content {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  color: #374151;
 }
 </style>

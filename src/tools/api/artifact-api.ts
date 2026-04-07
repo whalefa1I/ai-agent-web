@@ -43,7 +43,7 @@ export async function fetchArtifact(accountId: string, artifactId: string): Prom
  * 获取会话的所有 tool-state artifacts（兼容端点）
  */
 export async function fetchSessionArtifacts(sessionId: string): Promise<BackendArtifact[]> {
-    const url = `${API_BASE}/tool-state/session/${sessionId}`;
+    const url = `${API_BASE.replace('/v1', '/v2')}/tool-state/session/${sessionId}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -53,7 +53,9 @@ export async function fetchSessionArtifacts(sessionId: string): Promise<BackendA
         throw new Error(`Failed to fetch session artifacts: ${response.status}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    // /api/v2/tool-state/session 返回 { success: true, artifacts: [...] }
+    return (data.artifacts as BackendArtifact[]) || [];
 }
 
 /**

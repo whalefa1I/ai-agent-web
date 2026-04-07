@@ -96,14 +96,6 @@ async function getApiKey(serverUrl: string): Promise<string> {
       // 如果生成失败，使用一个临时的 key（可能会被后端拒绝）
       key = `temp-key-${Date.now()}`
     }
-  } else {
-    // API Key 已存在时，检查是否需要更新 accountId
-    // 如果 localStorage 中没有 accountId，生成一个新的
-    if (!localStorage.getItem(ACCOUNT_ID_KEY)) {
-      const id = `account-${Date.now()}`
-      localStorage.setItem(ACCOUNT_ID_KEY, id)
-      console.log('[HappyAPI] Created new accountId:', id)
-    }
   }
   return key
 }
@@ -172,7 +164,7 @@ export class HappyApiService {
   private sessionId: string
   private apiKey: string | null = null
   private pollingTimer: number | null = null
-  private pollingInterval: number = 500 // 500ms 轮询一次（支持流式输出）
+  private pollingInterval: number = 1000 // 1000ms 轮询一次（降低频率避免 429）
 
   constructor(serverUrl: string = DEFAULT_SERVER_URL) {
     // 如果 serverUrl 为空（生产环境），使用空字符串，请求会使用相对路径由浏览器发送到当前域名
