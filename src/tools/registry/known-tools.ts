@@ -372,6 +372,155 @@ export const knownTools: Record<string, ToolDefinition> = {
             }
             return 'Asking question';
         }
+    },
+
+    // ==================== Task 工具集 ====================
+    'TaskCreate': {
+        title: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.subject === 'string') {
+                return opts.tool.args.subject;
+            }
+            return 'Create Task';
+        },
+        icon: ICONS.bulb,
+        noStatus: false,
+        minimal: false,
+        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.description === 'string') {
+                return opts.tool.args.description;
+            }
+            if (typeof opts.tool.args?.activeForm === 'string') {
+                return opts.tool.args.activeForm;
+            }
+            return 'Create a new task';
+        },
+        extractSubtitle: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            // 从 result 中获取 task info
+            if (opts.tool.result && typeof opts.tool.result === 'object') {
+                const result = opts.tool.result as Record<string, unknown>;
+                if (result.metadata) {
+                    const metadata = result.metadata as Record<string, unknown>;
+                    if (metadata.task) {
+                        const task = metadata.task as Record<string, unknown>;
+                        return `Task ID: ${task.id}`;
+                    }
+                }
+            }
+            return null;
+        },
+        extractStatus: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (opts.tool.state === 'completed') {
+                return 'Task created';
+            }
+            return null;
+        }
+    },
+
+    'TaskList': {
+        title: 'Task List',
+        icon: ICONS.list,
+        minimal: true,
+        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.status === 'string') {
+                return `Filter by status: ${opts.tool.args.status}`;
+            }
+            return 'List all tasks';
+        }
+    },
+
+    'TaskGet': {
+        title: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.task_id === 'string') {
+                return `Get Task: ${opts.tool.args.task_id}`;
+            }
+            return 'Get Task';
+        },
+        icon: ICONS.list,
+        minimal: true,
+        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.task_id === 'string') {
+                return `Get details of task: ${opts.tool.args.task_id}`;
+            }
+            return 'Get task details';
+        }
+    },
+
+    'TaskUpdate': {
+        title: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            const taskId = opts.tool.args?.task_id as string || 'unknown';
+            const status = opts.tool.args?.status as string;
+            if (status) {
+                return `${status}: ${taskId}`;
+            }
+            return `Update: ${taskId}`;
+        },
+        icon: ICONS.check,
+        noStatus: false,
+        minimal: false,
+        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            const updates: string[] = [];
+            if (typeof opts.tool.args?.status === 'string') {
+                updates.push(`status: ${opts.tool.args.status}`);
+            }
+            if (typeof opts.tool.args?.subject === 'string') {
+                updates.push(`subject: ${opts.tool.args.subject}`);
+            }
+            if (typeof opts.tool.args?.activeForm === 'string') {
+                updates.push(`activeForm: ${opts.tool.args.activeForm}`);
+            }
+            if (updates.length > 0) {
+                return `Update task ${opts.tool.args?.task_id}: ${updates.join(', ')}`;
+            }
+            return 'Update task';
+        },
+        extractSubtitle: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            // 从 result 中获取 task info
+            if (opts.tool.result && typeof opts.tool.result === 'object') {
+                const result = opts.tool.result as Record<string, unknown>;
+                if (result.metadata) {
+                    const metadata = result.metadata as Record<string, unknown>;
+                    if (metadata.task) {
+                        const task = metadata.task as Record<string, unknown>;
+                        return `Task: ${task.subject} (${task.status})`;
+                    }
+                }
+            }
+            return null;
+        }
+    },
+
+    'TaskStop': {
+        title: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.task_id === 'string') {
+                return `Stop: ${opts.tool.args.task_id}`;
+            }
+            return 'Stop Task';
+        },
+        icon: ICONS.terminal,
+        minimal: true,
+        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.task_id === 'string') {
+                return `Stop task: ${opts.tool.args.task_id}`;
+            }
+            return 'Stop a running task';
+        }
+    },
+
+    'TaskOutput': {
+        title: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.task_id === 'string') {
+                return `Output: ${opts.tool.args.task_id}`;
+            }
+            return 'Task Output';
+        },
+        icon: ICONS.terminal,
+        minimal: true,
+        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.task_id === 'string') {
+                return `Get output of task: ${opts.tool.args.task_id}`;
+            }
+            return 'Get task output';
+        }
     }
 };
 

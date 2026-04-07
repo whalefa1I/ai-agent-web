@@ -1,5 +1,13 @@
 <template>
-  <div class="tool-call-view" :class="{ 'minimal': isMinimal, 'expanded': !isMinimal }">
+  <!-- Task 工具使用专用视图 -->
+  <TaskToolView
+    v-if="isTaskTool"
+    :tool="tool"
+    :metadata="metadata"
+  />
+
+  <!-- 其他工具使用默认视图 -->
+  <div v-else class="tool-call-view" :class="{ 'minimal': isMinimal, 'expanded': !isMinimal }">
     <!-- 工具头部 -->
     <div class="tool-header" @click="toggleExpand">
       <div class="tool-icon">
@@ -49,6 +57,7 @@ import { computed, ref } from 'vue';
 import type { ToolCall, ToolDefinition, Message, Metadata } from '@/types/happy-protocol';
 import { getToolDefinition } from '@/tools/registry/known-tools';
 import StatusIndicator from './StatusIndicator.vue';
+import TaskToolView from './TaskToolView.vue';
 
 interface Props {
   tool: ToolCall;
@@ -64,6 +73,12 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const isExpanded = ref(props.defaultExpanded);
+
+// 判断是否是 Task 工具
+const isTaskTool = computed(() => {
+  const toolName = props.tool.name;
+  return ['TaskCreate', 'TaskList', 'TaskGet', 'TaskUpdate', 'TaskStop', 'TaskOutput'].includes(toolName);
+});
 
 // 获取工具定义
 const toolDef = computed(() => getToolDefinition(props.tool.name));

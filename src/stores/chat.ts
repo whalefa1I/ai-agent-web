@@ -65,6 +65,8 @@ export const useChatStore = defineStore('chat', () => {
       // onArtifactsChange
       (artifacts: HappyArtifact[]) => {
         processArtifacts(artifacts)
+        // 同时检查是否有权限请求
+        fetchPendingPermissions()
       },
       // onArtifactUpdate
       (artifact: HappyArtifact) => {
@@ -171,8 +173,10 @@ export const useChatStore = defineStore('chat', () => {
     todoItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     todos.value = todoItems
 
-    // 提取权限请求
-    pendingPermission.value = permissions.length > 0 ? permissions[0] : null
+    // 提取权限请求（优先从 artifacts 提取）
+    if (permissions.length > 0) {
+      pendingPermission.value = permissions[0]
+    }
   }
 
   /**
@@ -203,6 +207,8 @@ export const useChatStore = defineStore('chat', () => {
         // 新工具调用或工具状态更新，重新加载所有消息以更新聊天流
         apiService.value.getArtifacts().then(artifacts => {
           processArtifacts(artifacts)
+          // 同时检查是否有权限请求（工具调用可能触发权限请求）
+          fetchPendingPermissions()
         })
       } else if (header.type === 'todo') {
         // 新待办事项或待办状态更新，重新加载所有消息以更新聊天流
@@ -218,6 +224,23 @@ export const useChatStore = defineStore('chat', () => {
       }
     } catch (error) {
       console.error('处理新 artifact 失败:', error)
+    }
+  }
+
+  /**
+   * 从 HTTP API 获取待确认的权限请求
+   */
+  async function fetchPendingPermissions() {
+    try {
+      const permissions = await apiService.value.getPendingPermissions()
+      if (permissions.length > 0 && !permissions[0].body.response) {
+        pendingPermission.value = permissions[0]
+      } else if (permissions.length === 0) {
+        // 没有待确认的权限请求，清除对话框
+        pendingPermission.value = null
+      }
+    } catch (error) {
+      console.error('获取权限请求失败:', error)
     }
   }
 

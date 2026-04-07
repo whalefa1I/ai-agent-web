@@ -75,12 +75,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { marked } from 'marked'
 import PermissionDialog from './PermissionDialog.vue'
 import ToolCalls from './ToolCalls.vue'
 import TodoItems from './TodoItems.vue'
+import { logger } from '@/utils/debug-logger'
 
 const chatStore = useChatStore()
 const messages = computed(() => chatStore.messages)
@@ -89,8 +90,22 @@ const pendingPermission = computed(() => chatStore.pendingPermission)
 const toolCalls = computed(() => chatStore.pendingToolCalls)
 const todos = computed(() => chatStore.todos)
 
+// 组件挂载日志
+onMounted(() => {
+  logger.logComponentMount('MessageList', { messagesCount: messages.value.length })
+})
+
+// 监听消息变化
+watch(messages, (newVal, oldVal) => {
+  logger.logStateChange('MessageList', 'messages', oldVal?.length, newVal?.length)
+  newVal.forEach(msg => {
+    logger.logMessageRender(msg.type, msg.id, msg.content)
+  })
+}, { deep: true })
+
 // 渲染 Markdown
 const renderMarkdown = (content: string) => {
+  logger.debug('MessageList', 'Rendering markdown', { contentLength: content?.length })
   return marked.parse(content, { async: false }) as string
 }
 

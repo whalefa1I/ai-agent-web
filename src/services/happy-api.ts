@@ -560,6 +560,88 @@ export class HappyApiService {
       })
       .map(a => ({ ...a, header: this.parseHeader(a), body: this.parseBody(a) }))
   }
+
+  /**
+   * 获取待确认的权限请求（从后端 API）
+   */
+  async getPendingPermissions(): Promise<PermissionArtifact[]> {
+    try {
+      const res = await fetch(`${this.serverUrl}/api/permissions/pending`)
+      if (!res.ok) {
+        return []
+      }
+      const requests = await res.json()
+      // 将后端 PermissionRequest 转换为前端 PermissionArtifact 格式
+      return requests.map((req: any) => ({
+        id: req.id,
+        header: {
+          type: 'permission',
+          subtype: 'permission-request',
+          title: req.toolName,
+          toolName: req.toolName,
+          toolDisplayName: req.toolName,
+          toolDescription: req.toolDescription,
+          level: req.level,
+          levelLabel: this.getLevelLabel(req.level),
+          levelIcon: this.getLevelIcon(req.level),
+          levelColor: this.getLevelColor(req.level)
+        },
+        body: {
+          type: 'permission',
+          inputSummary: req.inputSummary,
+          riskExplanation: req.riskExplanation,
+          permissionOptions: [
+            { label: '仅允许本次', value: 'ALLOW_ONCE', style: 'default', description: '本次会话有效' },
+            { label: '本次会话允许', value: 'ALLOW_SESSION', style: 'primary', description: '会话期间有效' },
+            { label: '始终允许', value: 'ALLOW_ALWAYS', style: 'warning', description: '永久记住此授权' },
+            { label: '拒绝', value: 'DENY', style: 'danger', description: '拒绝执行此操作' }
+          ]
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        bodyVersion: 0,
+        headerVersion: 1,
+        accountId: this.accountId,
+        sessionId: this.sessionId
+      }))
+    } catch (error) {
+      console.error('获取权限请求失败:', error)
+      return []
+    }
+  }
+
+  private getLevelLabel(level: string): string {
+    const labels: Record<string, string> = {
+      'READ_ONLY': '只读',
+      'MODIFY_STATE': '修改',
+      'NETWORK': '网络',
+      'DESTRUCTIVE': '破坏性',
+      'AGENT_SPAWN': 'Agent'
+    }
+    return labels[level] || '未知'
+  }
+
+  private getLevelIcon(level: string): string {
+    const icons: Record<string, string> = {
+      'READ_ONLY': '👁️',
+      'MODIFY_STATE': '✏️',
+      'NETWORK': '🌐',
+      'DESTRUCTIVE': '⚠️',
+      'AGENT_SPAWN': '🤖'
+    }
+    return icons[level] || '❓'
+  }
+
+  private getLevelColor(level: string): string {
+    const colors: Record<string, string> = {
+      'READ_ONLY': '#6b7280',
+      'MODIFY_STATE': '#f59e0b',
+      'NETWORK': '#3b82f6',
+      'DESTRUCTIVE': '#dc2626',
+      'AGENT_SPAWN': '#8b5cf6'
+    }
+    return colors[level] || '#6b7280'
+  }
 }
 
 // 导出单例

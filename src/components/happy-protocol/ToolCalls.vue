@@ -93,10 +93,9 @@
         />
 
         <!-- Todo Write -->
-        <ToolCallView
+        <TodoListView
           v-else-if="call.toolName === 'todo_write'"
-          :tool="toToolCall(call, 'Task List')"
-          :metadata="metadata"
+          :todos="extractTodos(call)"
         />
 
         <!-- Default fallback -->
@@ -115,6 +114,7 @@ import { computed } from 'vue';
 import type { ToolCall as HappyToolCall, Message, Metadata } from '@/types/happy-protocol';
 import ToolCallView from './ToolCallView.vue';
 import MessageView from './MessageView.vue';
+import TodoListView from './TodoListView.vue';
 
 interface LegacyToolCall {
   id?: string;
@@ -160,6 +160,23 @@ function toToolCall(legacy: LegacyToolCall, title: string): HappyToolCall {
     endTime: legacy.status === 'success' || legacy.status === 'error' ? Date.now() : undefined,
     durationMs: undefined
   };
+}
+
+// 从 tool call 中提取 todos
+function extractTodos(call: LegacyToolCall) {
+  // 首先尝试从 args 中获取
+  const todos = call.args?.todos;
+  if (Array.isArray(todos)) {
+    return todos;
+  }
+
+  // 尝试从 result.metadata.newTodos 中获取
+  const result = call.result as Record<string, any>;
+  if (result?.metadata?.newTodos && Array.isArray(result.metadata.newTodos)) {
+    return result.metadata.newTodos;
+  }
+
+  return [];
 }
 
 // 使用消息列表（Happy Protocol）或传统 tool calls

@@ -61,10 +61,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, type Component, onMounted } from 'vue'
 import type { ToolCallArtifact } from '@/types/happy-protocol'
 import { toolViews } from '@/tools/views'
 import { getToolMetadata, TOOL_ICONS } from '@/tools/tool-registry'
+import { logger } from '@/utils/debug-logger'
 
 import TodoView from '@/tools/views/TodoView.vue'
 import BashView from '@/tools/views/BashView.vue'
@@ -83,20 +84,34 @@ const props = defineProps<{
   toolCalls: ToolCallArtifact[]
 }>()
 
+// 组件挂载日志
+onMounted(() => {
+  logger.logComponentMount('ToolCalls', { toolCallsCount: props.toolCalls?.length })
+  props.toolCalls?.forEach(tc => {
+    const toolName = tc.header?.subtype || tc.header?.toolName || 'unknown'
+    logger.logToolCall(toolName, 'rendering', tc.id)
+  })
+})
+
 // 获取工具视图组件
 const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
   const toolName = toolCall.header?.subtype || toolCall.header?.toolName || ''
+  logger.debug('ToolCalls', `Getting view component for ${toolName}`)
 
   // 根据工具类型返回专用视图组件
   switch (toolName) {
     case 'todo_write':
+      logger.info('ToolCalls', 'Routing to TodoView')
       return TodoView
     case 'bash':
+      logger.info('ToolCalls', 'Routing to BashView')
       return BashView
     case 'file_edit':
     case 'file_write':
+      logger.info('ToolCalls', 'Routing to EditView')
       return EditView
     case 'file_read':
+      logger.info('ToolCalls', 'Routing to FileReadView')
       return FileReadView
     // Task 工具集
     case 'TaskCreate':
@@ -105,29 +120,37 @@ const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
     case 'TaskUpdate':
     case 'TaskStop':
     case 'TaskOutput':
+      logger.info('ToolCalls', `Routing to TaskView for ${toolName}`)
       return TaskView
     // AskUserQuestion 工具
     case 'AskUserQuestion':
+      logger.info('ToolCalls', 'Routing to AskUserQuestionView')
       return AskUserQuestionView
     // ExitPlanMode 工具
     case 'ExitPlanMode':
+      logger.info('ToolCalls', 'Routing to ExitPlanModeView')
       return ExitPlanModeView
     // LS 工具
     case 'ls':
+      logger.info('ToolCalls', 'Routing to LSView')
       return LSView
     // MultiEdit 工具
     case 'multi_edit':
+      logger.info('ToolCalls', 'Routing to MultiEditView')
       return MultiEditView
     // MCP 工具
     case 'mcp_connect':
     case 'mcp_disconnect':
+      logger.info('ToolCalls', 'Routing to McpServerView')
       return McpServerView
     // Skills 工具
     case 'skill_install':
     case 'skill_uninstall':
     case 'skill_search':
+      logger.info('ToolCalls', 'Routing to SkillsView')
       return SkillsView
     default:
+      logger.warn('ToolCalls', `No view component for ${toolName}, using default`)
       return null
   }
 }
