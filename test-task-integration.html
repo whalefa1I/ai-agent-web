@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .test-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; white-space: pre-wrap; }
+        .success { color: green; }
+        .error { color: red; }
+        .task-item { padding: 10px; margin: 5px 0; border-left: 3px solid #007bff; }
+        .task-item.completed { border-left-color: #22c55e; opacity: 0.7; }
+        .task-item.in_progress { border-left-color: #3b82f6; }
+        .task-item.pending { border-left-color: #9ca3af; }
+        .checkbox { font-size: 16px; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <h1>Task 系统集成测试</h1>
+
+    <div class="test-section">
+        <h2>1. 后端健康检查</h2>
+        <button class="test-btn" onclick="checkHealth()">检查后端</button>
+        <div id="health-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Task 工具测试</h2>
+        <button class="test-btn" onclick="createTask()">创建 Task</button>
+        <button class="test-btn" onclick="listTasks()">列出 Tasks</button>
+        <button class="test-btn" onclick="updateTask()">更新 Task</button>
+        <div id="task-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. TaskToolView 渲染测试</h2>
+        <div id="task-display"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. 前端 API 测试</h2>
+        <button class="test-btn" onclick="getApiInfo()">获取 API 信息</button>
+        <div id="api-result" class="result"></div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'http://localhost:8080';
+        const FRONTEND_URL = window.location.origin;
+
+        // 1. 健康检查
+        async function checkHealth() {
+            const resultDiv = document.getElementById('health-result');
+            try {
+                const res = await fetch(`${BACKEND_URL}/actuator/health`);
+                const data = await res.json();
+                resultDiv.innerHTML = `<span class="success">✓ 后端服务正常</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (e) {
+                resultDiv.innerHTML = `<span class="error">✗ 后端服务异常：${e.message}</span>`;
+            }
+        }
+
+        // 2. 创建 Task
+        async function createTask() {
+            const resultDiv = document.getElementById('task-result');
+            try {
+                // 模拟 TaskCreate 输入
+                const input = {
+                    subject: '测试任务：创建文件',
+                    description: '这是一个测试任务，用于验证 Task 系统',
+                    activeForm: 'Creating test file...'
+                };
+
+                resultDiv.innerHTML = `模拟 TaskCreate 调用:\n${JSON.stringify(input, null, 2)}`;
+
+                // 显示模拟的 Task 渲染效果
+                renderTaskPreview({
+                    subject: '测试任务：创建文件',
+                    status: 'pending',
+                    activeForm: 'Creating test file...',
+                    id: 'task-test-001'
+                });
+
+            } catch (e) {
+                resultDiv.innerHTML = `<span class="error">错误：${e.message}</span>`;
+            }
+        }
+
+        // 3. 列出 Tasks
+        async function listTasks() {
+            const resultDiv = document.getElementById('task-result');
+
+            // 模拟 TaskList 返回
+            const mockTasks = [
+                {
+                    id: 'task-001',
+                    subject: '分析需求',
+                    description: '分析用户需求并制定计划',
+                    status: 'completed',
+                    activeForm: 'Analyzing requirements'
+                },
+                {
+                    id: 'task-002',
+                    subject: '编写代码',
+                    description: '实现核心功能',
+                    status: 'in_progress',
+                    activeForm: 'Writing code'
+                },
+                {
+                    id: 'task-003',
+                    subject: '测试验证',
+                    description: '进行单元测试和集成测试',
+                    status: 'pending',
+                    activeForm: 'Testing'
+                }
+            ];
+
+            resultDiv.innerHTML = `模拟 TaskList 返回:\n${JSON.stringify(mockTasks, null, 2)}`;
+
+            // 显示 Task 列表渲染效果
+            renderTaskList(mockTasks);
+        }
+
+        // 4. 更新 Task
+        function updateTask() {
+            const resultDiv = document.getElementById('task-result');
+            resultDiv.innerHTML = 'TaskUpdate 模拟：\n将 task-002 状态从 pending 更新为 in_progress';
+        }
+
+        // 渲染单个 Task 预览
+        function renderTaskPreview(task) {
+            const displayDiv = document.getElementById('task-display');
+            const statusClass = task.status;
+            const checkbox = task.status === 'completed' ? '☑' : '☐';
+            const statusColor = {
+                'completed': '#22c55e',
+                'in_progress': '#3b82f6',
+                'pending': '#9ca3af'
+            }[task.status];
+
+            displayDiv.innerHTML = `
+                <div class="task-item ${statusClass}" style="border-left-color: ${statusColor}">
+                    <span class="checkbox" style="color: ${statusColor}">${checkbox}</span>
+                    <strong>${task.subject}</strong>
+                    <div style="color: #666; font-size: 14px; margin-top: 5px">${task.description}</div>
+                    ${task.activeForm ? `<div style="color: #3b82f6; font-size: 12px; font-style: italic; margin-top: 5px">${task.activeForm}</div>` : ''}
+                    <div style="color: #999; font-size: 11px; margin-top: 5px">ID: ${task.id}</div>
+                </div>
+
+                <h4>Input:</h4>
+                <pre style="background: #eff6ff; padding: 10px; color: #1e3a8a; font-size: 12px">${JSON.stringify({
+                    subject: task.subject,
+                    description: task.description,
+                    activeForm: task.activeForm
+                }, null, 2)}</pre>
+
+                <h4>Output:</h4>
+                <pre style="background: #f0fdf4; padding: 10px; color: #166534; font-size: 12px">${JSON.stringify({
+                    task: { id: task.id, subject: task.subject, status: task.status }
+                }, null, 2)}</pre>
+            `;
+        }
+
+        // 渲染 Task 列表
+        function renderTaskList(tasks) {
+            const displayDiv = document.getElementById('task-display');
+
+            const completed = tasks.filter(t => t.status === 'completed').length;
+            const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+
+            displayDiv.innerHTML = `
+                <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden">
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f9fafb; border-bottom: 1px solid #e5e7eb">
+                        <div style="width: 32px; height: 32px; background: #dbeafe; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 20px">📋</div>
+                        <div style="flex: 1">
+                            <div style="font-weight: 600; font-size: 14px; color: #111827">Task List</div>
+                            <div style="font-size: 12px; color: #6b7280; margin-top: 2px">
+                                ${completed}/${tasks.length} completed · ${inProgress} in progress
+                            </div>
+                        </div>
+                        <div style="font-size: 20px; color: #9ca3af">›</div>
+                    </div>
+
+                    <div style="padding: 12px">
+                        ${tasks.map(task => {
+                            const statusClass = task.status;
+                            const checkbox = task.status === 'completed' ? '☑' : '☐';
+                            const statusColor = {
+                                'completed': '#22c55e',
+                                'in_progress': '#3b82f6',
+                                'pending': '#9ca3af'
+                            }[task.status];
+
+                            return `
+                                <div class="task-item ${statusClass}" style="border-left-color: ${statusColor}; display: flex; align-items: flex-start; gap: 8px">
+                                    <span class="checkbox" style="color: ${statusColor}; width: 20px; text-align: center">${checkbox}</span>
+                                    <div style="flex: 1">
+                                        <div style="${task.status === 'completed' ? 'text-decoration: line-through; color: #9ca3af' : 'color: #111827'}; font-size: 14px">
+                                            ${task.subject}
+                                        </div>
+                                        ${task.activeForm && task.status === 'in_progress' ?
+                                            `<div style="color: #3b82f6; font-size: 12px; font-style: italic; margin-top: 4px">${task.activeForm}</div>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 5. 获取 API 信息
+        function getApiInfo() {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.innerHTML = `前端 URL: ${FRONTEND_URL}\n后端 URL: ${BACKEND_URL}\n\n` +
+                `API 端点:\n` +
+                `- GET /api/health\n` +
+                `- POST /api/v1/artifacts\n` +
+                `- GET /api/v1/artifacts\n` +
+                `- GET /api/permissions/pending`;
+        }
+
+        // 页面加载时自动检查
+        window.onload = () => {
+            checkHealth();
+            getApiInfo();
+        };
+    </script>
+</body>
+</html>

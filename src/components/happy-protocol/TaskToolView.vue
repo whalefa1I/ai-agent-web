@@ -106,10 +106,20 @@ onMounted(() => {
 
 // 从 toolCall 中提取 todos
 const todos = computed(() => {
+  const toolName = props.toolCall?.header?.subtype || props.toolCall?.header?.toolName || 'unknown';
+  logger.debug('TaskToolView', `Extracting todos for ${toolName}`, {
+    hasMetadata: !!props.toolCall.body?.metadata,
+    hasInput: !!props.toolCall.body?.input,
+    hasOutput: !!props.toolCall.body?.output
+  });
+
   // 1. 首先尝试从 result.metadata.todos 获取（Task* 工具）
   if (props.toolCall.body?.metadata) {
     const metadata = props.toolCall.body.metadata as Record<string, unknown>;
+    logger.debug('TaskToolView', 'Checking metadata', { metadataKeys: Object.keys(metadata || {}) });
+
     if (metadata.todos && Array.isArray(metadata.todos)) {
+      logger.info('TaskToolView', 'Found todos in metadata.todos', { count: metadata.todos.length });
       return metadata.todos.map((todo: any) => ({
         content: todo.content || todo.subject || 'Unnamed',
         status: (todo.status || 'pending') as 'pending' | 'in_progress' | 'completed',
@@ -120,6 +130,10 @@ const todos = computed(() => {
     // 2. 尝试从 metadata.task 获取单个任务
     if (metadata.task) {
       const task = metadata.task as Record<string, unknown>;
+      logger.info('TaskToolView', 'Found single task in metadata.task', {
+        subject: task.subject,
+        status: task.status
+      });
       return [{
         content: (task.subject as string) || (task.content as string) || 'Unnamed Task',
         status: (task.status as 'pending' | 'in_progress' | 'completed') || 'pending',
@@ -133,6 +147,7 @@ const todos = computed(() => {
   if (props.toolCall.body?.input) {
     const input = props.toolCall.body.input as Record<string, unknown>;
     if (input.todos && Array.isArray(input.todos)) {
+      logger.info('TaskToolView', 'Found todos in input.todos', { count: input.todos.length });
       return input.todos.map((todo: any) => ({
         content: todo.content || 'Unnamed',
         status: (todo.status || 'pending') as 'pending' | 'in_progress' | 'completed',
@@ -145,6 +160,7 @@ const todos = computed(() => {
   // 4. 尝试从 output 中解析（兼容旧格式）
   const output = props.toolCall.body?.output as string;
   if (output) {
+    logger.debug('TaskToolView', 'Parsing output for todos', { outputLength: output?.length });
     const todos: TodoItem[] = [];
     const lines = output.split('\n');
     let currentTodo: Partial<TodoItem> = {};
@@ -180,10 +196,12 @@ const todos = computed(() => {
     }
 
     if (todos.length > 0) {
+      logger.info('TaskToolView', 'Parsed todos from output', { count: todos.length });
       return todos;
     }
   }
 
+  logger.debug('TaskToolView', 'No todos found, returning empty array');
   return [];
 });
 
