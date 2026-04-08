@@ -6,6 +6,7 @@ import type { ChatMessageDTO, ToolCallArtifact } from '@/types/happy-protocol'
 import {
   extractTaskRowsFromAiAgentToolBody,
   mapTaskRecord,
+  resolveTaskMetadataFromToolBody,
   type AiAgentTaskRow
 } from '@/utils/ai-agent-tool-body'
 
@@ -72,11 +73,11 @@ export function mergeTaskToolCallsToRows(calls: ToolCallArtifact[]): AiAgentTask
 
   for (let ci = 0; ci < calls.length; ci++) {
     const call = calls[ci]!
-    const name = String(call.header?.subtype || call.header?.toolName || '').trim()
+    const name = getToolName(call)
     const body = call.body as Record<string, unknown> | undefined
     if (!body) continue
 
-    const meta = body.metadata as Record<string, unknown> | undefined
+    const meta = resolveTaskMetadataFromToolBody(body)
 
     if (name === 'TaskList' && meta && Array.isArray(meta.tasks)) {
       byId.clear()
@@ -138,7 +139,7 @@ function cloneRows(rows: AiAgentTaskRow[]): AiAgentTaskRow[] {
   return rows.map(r => ({ ...r }))
 }
 
-function getToolName(call: ToolCallArtifact): string {
+export function getToolName(call: ToolCallArtifact): string {
   const raw =
     call.header?.subtype ||
     call.header?.toolName ||
@@ -191,7 +192,7 @@ function mergeOneCallRows(current: AiAgentTaskRow[], call: ToolCallArtifact, ci:
   const name = getToolName(call)
   const body = call.body as Record<string, unknown> | undefined
   if (!body) return current
-  const meta = body.metadata as Record<string, unknown> | undefined
+  const meta = resolveTaskMetadataFromToolBody(body)
 
   const byId = new Map<string, AiAgentTaskRow>()
   const order: string[] = []
@@ -235,7 +236,8 @@ export function buildTaskProgressSnapshots(calls: ToolCallArtifact[]): TaskProgr
     const body = call.body as Record<string, unknown> | undefined
     const errRaw = body?.error || body?.message
     const input = body?.input as Record<string, unknown> | undefined
-    const contract = (body?.metadata as Record<string, unknown> | undefined)?.taskContract as Record<string, unknown> | undefined
+    const resolvedMeta = body ? resolveTaskMetadataFromToolBody(body) : undefined
+    const contract = resolvedMeta?.taskContract as Record<string, unknown> | undefined
     const errorCode = contract?.errorCode ? String(contract.errorCode) : undefined
     let errorText = errRaw ? String(errRaw) : undefined
     if (errorText && errorCode === 'TASK_CREATE_SUBJECT_REQUIRED') {

@@ -95,7 +95,12 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import type { ToolCallArtifact } from '@/types/happy-protocol'
 import { getToolMetadata } from '@/tools/tool-registry'
-import { mergeTaskToolCallsToRows, buildTaskProgressSnapshots } from '@/utils/task-tool-merge'
+import {
+  mergeTaskToolCallsToRows,
+  buildTaskProgressSnapshots,
+  getToolName
+} from '@/utils/task-tool-merge'
+import { resolveTaskMetadataFromToolBody } from '@/utils/ai-agent-tool-body'
 import { logger } from '@/utils/debug-logger'
 
 const props = defineProps<{
@@ -194,6 +199,28 @@ watch(todos, (next, prev) => {
     })
   }
 }, { deep: true })
+
+/** 有 Task 族调用却合不出行时打一条告警，便于 Linux/网关嵌套 body 排障 */
+watch(
+  () => ({
+    ids: props.toolCalls.map(c => c.id).join('|'),
+    merged: todos.value.length
+  }),
+  ({ ids, merged }) => {
+    if (!ids || merged > 0 || errorText.value) return
+    const first = props.toolCalls[0]
+    const body = first?.body as Record<string, unknown> | undefined
+    const resolved = body ? resolveTaskMetadataFromToolBody(body) : undefined
+    logger.warn('TaskAggregatedView', 'Merged task list empty while Task calls present', {
+      callCount: props.toolCalls.length,
+      firstCanonicalTool: first ? getToolName(first) : '',
+      firstBodyTopKeys: body && typeof body === 'object' ? Object.keys(body).slice(0, 32) : [],
+      resolvedMetaKeys: resolved ? Object.keys(resolved) : [],
+      sampleCanonicalTools: props.toolCalls.slice(0, 8).map(c => getToolName(c))
+    })
+  },
+  { flush: 'post' }
+)
 
 function getCheckboxSymbol(status: string): string {
   switch (status) {

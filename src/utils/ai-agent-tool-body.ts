@@ -27,6 +27,59 @@ function mapServerStatus(s: unknown): AiAgentTaskRowStatus {
   return 'pending'
 }
 
+function isPlainObject(x: unknown): x is Record<string, unknown> {
+  return x !== null && typeof x === 'object' && !Array.isArray(x)
+}
+
+/**
+ * 从工具 artifact body 中解析出与 TaskTools 对齐的 metadata 片段（含 tasks / task）。
+ * 兼容部分后端/网关把结果放在 output、result、localToolResult 等嵌套路径下的情况（Linux 部署联调常见）。
+ */
+export function resolveTaskMetadataFromToolBody(
+  body: Record<string, unknown> | null | undefined
+): Record<string, unknown> | undefined {
+  if (!body) return undefined
+
+  const looksLikeTaskMeta = (m: Record<string, unknown>): boolean =>
+    (Array.isArray(m.tasks) && m.tasks.length >= 0) ||
+    (m.task !== undefined && m.task !== null && typeof m.task === 'object' && !Array.isArray(m.task))
+
+  const direct = body.metadata
+  if (isPlainObject(direct) && looksLikeTaskMeta(direct)) {
+    return direct
+  }
+
+  const liftTasksFrom = (obj: Record<string, unknown>): Record<string, unknown> | undefined => {
+    if (Array.isArray(obj.tasks) || (isPlainObject(obj.task) && !Array.isArray(obj.task))) {
+      const out: Record<string, unknown> = {}
+      if (Array.isArray(obj.tasks)) out.tasks = obj.tasks
+      if (isPlainObject(obj.task)) out.task = obj.task
+      return out
+    }
+    return undefined
+  }
+
+  const nestedKeys = [
+    'output',
+    'result',
+    'data',
+    'localToolResult',
+    'toolResult',
+    'response',
+    'payload'
+  ] as const
+  for (const k of nestedKeys) {
+    const v = body[k]
+    if (!isPlainObject(v)) continue
+    const inner = v.metadata
+    if (isPlainObject(inner) && looksLikeTaskMeta(inner)) return inner
+    const lifted = liftTasksFrom(v)
+    if (lifted) return lifted
+  }
+
+  return liftTasksFrom(body)
+}
+
 /** 与后端 Task 记录字段对齐；供合并逻辑与列表提取共用 */
 export function mapTaskRecord(t: Record<string, unknown>): AiAgentTaskRow {
   const subject = (t.subject as string) || (t.content as string) || (t.title as string) || ''
@@ -46,7 +99,7 @@ export function mapTaskRecord(t: Record<string, unknown>): AiAgentTaskRow {
 export function extractTaskRowsFromAiAgentToolBody(body: Record<string, unknown> | null | undefined): AiAgentTaskRow[] {
   if (!body) return []
 
-  const meta = body.metadata as Record<string, unknown> | undefined
+  const meta = resolveTaskMetadataFromToolBody(body)
   if (!meta) return []
 
   const tasks = meta.tasks
