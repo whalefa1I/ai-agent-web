@@ -42,6 +42,9 @@
           <div v-else-if="row.message.subtype === 'summary-compact-message'" class="text-xs text-violet-600 mb-1">
             摘要压缩
           </div>
+          <div v-else-if="row.message.subtype === 'assistant-wait-message'" class="text-xs text-sky-600 mb-1">
+            等待模型
+          </div>
           <div
             v-if="row.message.subtype === 'compact-boundary-message' && row.message.metadata"
             class="mb-1 text-[11px] text-amber-700"
@@ -199,6 +202,20 @@ function rowKind(row: ChatDisplayRow): string {
 }
 const isThinking = computed(() => chatStore.isThinking)
 const SPINNER_VERBS = [
+  // Claude Code 风格词（英文）
+  'Thinking',
+  'Analyzing',
+  'Processing',
+  'Computing',
+  'Considering',
+  'Reasoning',
+  'Synthesizing',
+  'Pondering',
+  'Working',
+  'Stewing',
+  'Crafting',
+  'Generating',
+  // 中文补充
   '思考中',
   '推理中',
   '分析中',
@@ -206,9 +223,7 @@ const SPINNER_VERBS = [
   '整理中',
   '斟酌中',
   '处理中',
-  '检索中',
   '归纳中',
-  '比对中',
   '构思中',
   '校验中',
   '生成中',
@@ -217,20 +232,56 @@ const SPINNER_VERBS = [
   '拆解中',
   '聚合中',
   '判断中',
-  '联想中',
   '确认中'
 ]
 const spinnerVerb = ref('思考中')
+const lastSpinnerKey = ref<string>('')
 
 function randomSpinnerVerb(): string {
   return SPINNER_VERBS[Math.floor(Math.random() * SPINNER_VERBS.length)] || '思考中'
 }
 
+function randomSpinnerVerbExcept(prev: string): string {
+  if (SPINNER_VERBS.length <= 1) return randomSpinnerVerb()
+  let next = randomSpinnerVerb()
+  let guard = 0
+  while (next === prev && guard < 8) {
+    next = randomSpinnerVerb()
+    guard += 1
+  }
+  return next
+}
+
 watch(isThinking, (now, prev) => {
   if (now && !prev) {
-    spinnerVerb.value = randomSpinnerVerb()
+    spinnerVerb.value = randomSpinnerVerbExcept(spinnerVerb.value)
+    lastSpinnerKey.value = ''
   }
 })
+
+// 按「收到一条完整输出」切换等待词：
+// 用户发送后开始等待会固定一个词；当收到新的 TOOL/ASSISTANT/SYSTEM/TODO 完整消息后，
+// 下一段等待期再换一个词（不按秒抖动）。
+watch(
+  displayRows,
+  (rows) => {
+    if (!isThinking.value) return
+    let key = ''
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const row = rows[i]
+      if (row.kind !== 'message') continue
+      const m = row.message
+      if (m.type === 'THINKING' || m.type === 'USER') continue
+      key = `${m.type}:${m.id}`
+      break
+    }
+    if (key && key !== lastSpinnerKey.value) {
+      spinnerVerb.value = randomSpinnerVerbExcept(spinnerVerb.value)
+      lastSpinnerKey.value = key
+    }
+  },
+  { deep: true }
+)
 // 组件挂载日志
 onMounted(() => {
   logger.logComponentMount('MessageList', { messagesCount: messages.value.length })

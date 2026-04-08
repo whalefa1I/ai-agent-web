@@ -527,7 +527,8 @@ export class HappyApiService {
               header.subtype === 'compact-boundary-message' ||
               header.subtype === 'tool-result-trim-message' ||
               header.subtype === 'snip-history-message' ||
-              header.subtype === 'summary-compact-message'
+              header.subtype === 'summary-compact-message' ||
+              header.subtype === 'assistant-wait-message'
             )
           )
         } catch {
