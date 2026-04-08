@@ -130,7 +130,9 @@
             <template v-else>
               <span class="wait-done-icon">✓</span>
             </template>
-            <span class="thinking-verb">{{ getWaitMessageText(row.message.id) }}</span>
+            <span :class="isWaitMessageDone(row.message.id) ? 'wait-done-text' : 'thinking-verb'">
+              {{ getWaitMessageText(row.message.id) }}
+            </span>
           </div>
           <div
             v-else-if="row.message.subtype !== 'assistant-loop-state-message'"
@@ -261,7 +263,11 @@ const waitMessageDoneById = computed<Record<string, boolean>>(() => {
       const next = rows[j]
       if (next.kind !== 'message') continue
       const nextMsg = next.message
-      if (nextMsg.type === 'USER') break
+      if (nextMsg.type === 'USER') {
+        // 出现下一条用户消息，说明当前等待阶段已结束（即使没有显式最终文本）
+        done = true
+        break
+      }
       const nextTurn = String(nextMsg.metadata?.userTurnId || '')
       if (currentTurn && nextTurn && currentTurn !== nextTurn) continue
       if (
@@ -471,6 +477,11 @@ const getMessageTimeClass = (type: string) => {
   font-weight: 500;
   letter-spacing: 0.1px;
   animation: thinkingFade 1.2s ease-in-out infinite;
+}
+
+.wait-done-text {
+  font-weight: 500;
+  letter-spacing: 0.1px;
 }
 
 .assistant-wait-card {
