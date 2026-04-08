@@ -26,7 +26,7 @@ import type {
 
 // 配置
 // 开发环境使用 Vite 代理 (见 vite.config.ts)，生产环境使用环境变量
-const DEFAULT_SERVER_URL = (import.meta as any).env?.VITE_API_BASE_URL || ''
+const DEFAULT_SERVER_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8080'
 const ACCOUNT_ID_KEY = 'happy-account-id'
 const SESSION_ID_KEY = 'happy-session-id'
 const API_KEY_KEY = 'happy-api-key'
@@ -64,6 +64,17 @@ function getSessionId(): string {
     localStorage.setItem(SESSION_ID_KEY, id)
   }
   return id
+}
+
+function resolveInitialServerUrl(): string {
+  const saved = localStorage.getItem('ai-agent-settings')
+  if (!saved) return DEFAULT_SERVER_URL
+  try {
+    const settings = JSON.parse(saved)
+    return settings.serverUrl || DEFAULT_SERVER_URL
+  } catch {
+    return DEFAULT_SERVER_URL
+  }
 }
 
 /**
@@ -166,10 +177,8 @@ export class HappyApiService {
   private pollingTimer: number | null = null
   private pollingInterval: number = 1000 // 1000ms 轮询一次（降低频率避免 429）
 
-  constructor(serverUrl: string = DEFAULT_SERVER_URL) {
-    // 如果 serverUrl 为空（生产环境），使用空字符串，请求会使用相对路径由浏览器发送到当前域名
-    // 开发环境下 Vite 代理会转发 /api 请求到 Railway
-    this.serverUrl = serverUrl ? serverUrl.replace(/\/$/, '') : ''
+  constructor(serverUrl: string = resolveInitialServerUrl()) {
+    this.serverUrl = serverUrl.replace(/\/$/, '')
     // 先获取 sessionId（不依赖 API Key）
     this.sessionId = getSessionId()
     // 获取或创建 accountId（如果已经有 API Key 保存的 userId，会使用它）
@@ -408,7 +417,8 @@ export class HappyApiService {
    */
   startPolling(
     onArtifactsChange: (artifacts: HappyArtifact[]) => void,
-    onArtifactUpdate: (artifact: HappyArtifact) => void
+    onArtifactUpdate: (artifact: HappyArtifact) => void,
+    onPollingError?: (error: unknown) => void
   ): () => void {
     let lastKnownArtifacts: Map<string, string> = new Map()
 
@@ -446,6 +456,9 @@ export class HappyApiService {
         }
       } catch (error) {
         console.error('轮询失败:', error)
+        if (onPollingError) {
+          onPollingError(error)
+        }
       }
     }
 
@@ -505,7 +518,23 @@ export class HappyApiService {
       .filter(a => {
         try {
           const header = this.parseHeader(a)
-          return header.type === 'message' && header.subtype === 'assistant-message'
+          return (
+            header.type === 'message' &&
+            (header.subtype === 'assistant-message' || header.subtype === 'assistant-progress-message')
+          )
+        } catch {
+          return false
+        }
+      })
+      .map(a => ({ ...a, header: this.parseHeader(a), body: this.parseBody(a) }))
+  }
+
+  extractThinkingMessages(artifacts: HappyArtifact[]): MessageArtifact[] {
+    return artifacts
+      .filter(a => {
+        try {
+          const header = this.parseHeader(a)
+          return header.type === 'message' && header.subtype === 'thinking-message'
         } catch {
           return false
         }

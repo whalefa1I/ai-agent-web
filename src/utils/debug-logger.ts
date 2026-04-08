@@ -6,6 +6,7 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogEntry {
+  id: string;
   timestamp: string;
   level: LogLevel;
   component: string;
@@ -17,6 +18,7 @@ class DebugLogger {
   private logs: LogEntry[] = [];
   private enabled = true;
   private maxLogs = 500;
+  private sequence = 0;
 
   constructor() {
     // 从 localStorage 读取启用状态
@@ -35,7 +37,9 @@ class DebugLogger {
   }
 
   private createEntry(level: LogLevel, component: string, message: string, data?: unknown): LogEntry {
+    this.sequence += 1;
     return {
+      id: `${Date.now()}-${this.sequence}`,
       timestamp: new Date().toISOString(),
       level,
       component,

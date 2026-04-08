@@ -102,6 +102,8 @@ function isTaskFamilyTool(toolCall: ToolCallArtifact): boolean {
   return isTaskFamilyToolCall(toolCall)
 }
 
+const warnedMissingViews = new Set<string>()
+
 // 获取工具视图组件
 const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
   const toolName = toolCall.header?.subtype || toolCall.header?.toolName || ''
@@ -129,6 +131,7 @@ const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
     case 'ExitPlanMode':
       return ExitPlanModeView
     case 'ls':
+    case 'glob':
       return LSView
     case 'multi_edit':
       return MultiEditView
@@ -140,7 +143,11 @@ const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
     case 'skill_search':
       return SkillsView
     default:
-      logger.warn('ToolCalls', `No view component for ${toolName}, using default`)
+      // 仅首次告警，避免渲染循环刷屏。
+      if (!warnedMissingViews.has(toolName)) {
+        logger.warn('ToolCalls', `No view component for ${toolName}, using default`)
+        warnedMissingViews.add(toolName)
+      }
       return null
   }
 }

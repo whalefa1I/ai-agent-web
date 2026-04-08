@@ -22,6 +22,7 @@ export const useChatStore = defineStore('chat', () => {
   const isThinking = ref(false)
   const apiService = ref<HappyApiService>(new HappyApiService())
   const stopPolling = ref<(() => void) | null>(null)
+  const pollingFailureCount = ref(0)
 
   // 计算属性
   const hasPendingPermission = computed(() => pendingPermission.value !== null)
@@ -71,6 +72,18 @@ export const useChatStore = defineStore('chat', () => {
       // onArtifactUpdate
       (artifact: HappyArtifact) => {
         processNewArtifact(artifact)
+      },
+      // onPollingError
+      (error: unknown) => {
+        pollingFailureCount.value += 1
+        if (pollingFailureCount.value >= 3 && isThinking.value) {
+          isThinking.value = false
+          messages.value = messages.value.filter(m => m.type !== 'THINKING')
+          addAssistantMessage(
+            `连接中断，已停止等待。请检查服务地址与网络后重试。` +
+              `${error instanceof Error ? `（${error.message}）` : ''}`
+          )
+        }
       }
     )
   }
@@ -89,10 +102,45 @@ export const useChatStore = defineStore('chat', () => {
     return Math.max(Number.isFinite(c) ? c : 0, Number.isFinite(u) ? u : 0)
   }
 
+  function isTaskToolName(name: string): boolean {
+    return /^Task(Create|List|Get|Update|Stop|Output)$/.test(name)
+  }
+
+  function summarizeToolProgress(toolCall: ToolCallArtifact): string | null {
+    const body = (toolCall.body ?? {}) as Record<string, unknown>
+    const header = (toolCall.header ?? {}) as Record<string, unknown>
+    const toolName = String(header.toolName || header.title || '工具')
+    if (isTaskToolName(toolName)) return null
+
+    const status = String(body.status || header.status || '').toLowerCase()
+    const duration = typeof body.durationMs === 'number' ? `（${body.durationMs}ms）` : ''
+    const outputRaw = body.output
+    const outputText =
+      typeof outputRaw === 'string'
+        ? outputRaw.trim()
+        : outputRaw != null
+          ? JSON.stringify(outputRaw)
+          : ''
+    const outputPreview = outputText ? outputText.slice(0, 120) : ''
+
+    if (status === 'failed' || status === 'error') {
+      return `执行 ${toolName} 失败${duration}${outputPreview ? `：${outputPreview}` : ''}`
+    }
+    if (status === 'completed') {
+      return `已完成 ${toolName}${duration}${outputPreview ? `：${outputPreview}` : ''}`
+    }
+    if (status === 'running' || status === 'in_progress' || status === 'started') {
+      return `正在执行 ${toolName}...`
+    }
+    return null
+  }
+
   function processArtifacts(artifacts: HappyArtifact[]) {
+    pollingFailureCount.value = 0
     // 提取所有类型的 artifacts
     const userMessages = apiService.value.extractUserMessages(artifacts)
     const assistantMessages = apiService.value.extractAssistantMessages(artifacts)
+    const thinkingMessages = apiService.value.extractThinkingMessages(artifacts)
     const toolCalls = apiService.value.extractToolCalls(artifacts)
     const todoItems = apiService.value.extractTodos(artifacts)
     const permissions = apiService.value.extractPendingPermissions(artifacts)
@@ -119,6 +167,16 @@ export const useChatStore = defineStore('chat', () => {
         timestamp: new Date(timelineMs(tc)).toISOString(),
         toolCall: tc
       })
+
+      const processText = summarizeToolProgress(tc)
+      if (processText) {
+        allMessages.push({
+          id: `tool-progress-${tc.id}-${tc.bodyVersion}`,
+          type: 'SYSTEM' as const,
+          content: processText,
+          timestamp: new Date(timelineMs(tc)).toISOString()
+        })
+      }
     })
 
     // 添加待办事项作为独立消息
@@ -137,10 +195,23 @@ export const useChatStore = defineStore('chat', () => {
       allMessages.push({
         id: m.id,
         type: 'ASSISTANT' as const,
+        subtype: String((m.header as any)?.subtype || 'assistant-message'),
         content: m.body.content,
         timestamp: new Date(timelineMs(m)).toISOString(),
         inputTokens: m.body.inputTokens,
         outputTokens: m.body.outputTokens
+      })
+    })
+
+    // 添加 thinking 消息（仅保留有内容的推理文本，避免空 thinking 卡住“思考中...”）
+    thinkingMessages.forEach(m => {
+      const content = String(m.body.content || '').trim()
+      if (!content) return
+      allMessages.push({
+        id: m.id,
+        type: 'THINKING' as const,
+        content,
+        timestamp: new Date(timelineMs(m)).toISOString()
       })
     })
 
@@ -204,8 +275,8 @@ export const useChatStore = defineStore('chat', () => {
             if (body.content && body.content.trim()) {
               console.log('收到助手回复内容，清除 isThinking')
               isThinking.value = false
-              // 移除所有 thinking 消息
-              messages.value = messages.value.filter(m => m.type !== 'THINKING')
+              // 仅移除本地占位的空 thinking，不移除后端返回的 thinking 内容
+              messages.value = messages.value.filter(m => !(m.type === 'THINKING' && !m.content))
             }
           }
         })

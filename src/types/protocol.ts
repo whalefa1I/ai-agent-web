@@ -151,6 +151,7 @@ export interface ErrorMessage extends ServerMessage {
 export interface ChatMessageDTO {
   id: string
   type: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL' | 'TODO' | 'THINKING'
+  subtype?: string
   content: string
   timestamp: string
   inputTokens?: number

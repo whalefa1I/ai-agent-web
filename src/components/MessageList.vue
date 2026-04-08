@@ -24,20 +24,29 @@
 
         <!-- 助手消息 -->
         <template v-else-if="row.message.type === 'ASSISTANT'">
+          <div v-if="row.message.subtype === 'assistant-progress-message'" class="text-xs text-gray-500 mb-1">
+            中间过程
+          </div>
           <div class="markdown-body" v-html="renderMarkdown(row.message.content)"></div>
         </template>
 
         <!-- 思考中状态 -->
         <template v-else-if="row.message.type === 'THINKING'">
           <div class="thinking-bubble">
-            <div class="flex items-center space-x-2">
-              <div class="flex space-x-1">
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+            <template v-if="row.message.content && row.message.content.trim()">
+              <div class="text-xs text-gray-500 mb-1">Thinking</div>
+              <p class="whitespace-pre-wrap text-sm text-gray-700">{{ row.message.content }}</p>
+            </template>
+            <template v-else>
+              <div class="flex items-center space-x-2">
+                <div class="flex space-x-1">
+                  <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                  <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                  <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                </div>
+                <span class="text-sm text-gray-500">思考中...</span>
               </div>
-              <span class="text-sm text-gray-500">思考中...</span>
-            </div>
+            </template>
           </div>
         </template>
 

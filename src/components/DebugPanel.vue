@@ -39,7 +39,7 @@
       <div class="log-list">
         <div
           v-for="log in filteredLogs"
-          :key="log.timestamp + log.message"
+          :key="log.id"
           class="log-entry"
           :class="`level-${log.level}`"
         >
