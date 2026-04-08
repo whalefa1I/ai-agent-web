@@ -109,6 +109,8 @@ const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
   // 根据工具类型返回专用视图组件（勿在此打 info/debug：渲染期每秒调用数百次会撑爆调试导出）
   switch (toolName) {
     case 'bash':
+    case 'Bash':
+    case 'shell':
       return BashView
     case 'file_edit':
     case 'file_write':

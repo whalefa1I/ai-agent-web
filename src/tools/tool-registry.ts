@@ -72,6 +72,30 @@ export const toolRegistry: Record<string, ToolMetadata> = {
       return 'started'
     }
   },
+  Bash: {
+    name: 'Bash',
+    displayName: '执行命令',
+    icon: 'terminal',
+    minimal: true,
+    extractTitle: (input) => {
+      const cmd = input.command as string
+      if (!cmd) return '执行命令'
+      const firstWord = cmd.split(' ')[0]
+      return firstWord.length > 20 ? firstWord.substring(0, 20) + '...' : firstWord
+    },
+    extractDescription: (input) => {
+      const cmd = input.command as string
+      const description = input.description as string
+      if (description) return description
+      return cmd || '执行 Shell 命令'
+    },
+    extractStatus: (body) => {
+      if (body.status === 'completed') return 'completed'
+      if (body.status === 'failed') return 'failed'
+      if (body.progress) return 'in_progress'
+      return 'started'
+    }
+  },
 
   // 文件读取工具（路径展示与 FileToolArgs 一致）
   file_read: {

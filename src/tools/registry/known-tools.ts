@@ -90,6 +90,61 @@ export const knownTools: Record<string, ToolDefinition> = {
             return null;
         }
     },
+    'Bash': {
+        title: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.command === 'string') {
+                const cmd = opts.tool.args.command;
+                const firstWord = cmd.split(' ')[0];
+                const cmdNames: Record<string, string> = {
+                    'cd': 'Change Directory',
+                    'ls': 'List Files',
+                    'pwd': 'Print Working Directory',
+                    'mkdir': 'Create Directory',
+                    'rm': 'Remove',
+                    'cp': 'Copy',
+                    'mv': 'Move',
+                    'npm': 'NPM',
+                    'yarn': 'Yarn',
+                    'git': 'Git',
+                    'python': 'Python',
+                    'node': 'Node'
+                };
+                return cmdNames[firstWord] || `Command: ${firstWord}`;
+            }
+            return 'Terminal Command';
+        },
+        icon: ICONS.terminal,
+        minimal: true,
+        hideDefaultError: true,
+        isMutable: true,
+        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.command === 'string') {
+                const cmd = opts.tool.args.command;
+                if (cmd.length > 40) {
+                    return cmd.substring(0, 40) + '...';
+                }
+                return cmd;
+            }
+            return 'Execute shell command';
+        },
+        extractSubtitle: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.command === 'string') {
+                return opts.tool.args.command;
+            }
+            return null;
+        }
+    },
+    'shell': {
+        title: 'Terminal Command',
+        icon: ICONS.terminal,
+        minimal: true,
+        hideDefaultError: true,
+        isMutable: true,
+        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
+            if (typeof opts.tool.args?.command === 'string') return opts.tool.args.command;
+            return 'Execute shell command';
+        }
+    },
 
     // ==================== Glob 工具 ====================
     'glob': {
