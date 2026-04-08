@@ -115,11 +115,21 @@
           </div>
           <div
             v-if="row.message.subtype === 'assistant-wait-message'"
-            class="assistant-wait-card mt-1 inline-flex items-center gap-2 rounded-lg border border-sky-200/70 bg-gradient-to-r from-sky-50 via-cyan-50 to-indigo-50 px-2.5 py-1.5 text-sm text-sky-700"
+            :class="[
+              'assistant-wait-card mt-1 inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm',
+              isWaitMessageDone(row.message.id)
+                ? 'assistant-wait-card-done border border-emerald-200/80 bg-emerald-50 text-emerald-700'
+                : 'border border-sky-200/70 bg-gradient-to-r from-sky-50 via-cyan-50 to-indigo-50 text-sky-700'
+            ]"
           >
-            <span class="wait-dot"></span>
-            <span class="wait-dot" style="animation-delay: 180ms"></span>
-            <span class="wait-dot" style="animation-delay: 360ms"></span>
+            <template v-if="!isWaitMessageDone(row.message.id)">
+              <span class="wait-dot"></span>
+              <span class="wait-dot" style="animation-delay: 180ms"></span>
+              <span class="wait-dot" style="animation-delay: 360ms"></span>
+            </template>
+            <template v-else>
+              <span class="wait-done-icon">✓</span>
+            </template>
             <span class="thinking-verb">{{ getWaitMessageText(row.message.id) }}</span>
           </div>
           <div
@@ -316,6 +326,10 @@ function getWaitMessageText(messageId: string): string {
   return `${verb}...`
 }
 
+function isWaitMessageDone(messageId: string): boolean {
+  return Boolean(waitMessageDoneById.value[messageId])
+}
+
 // 按「收到一条完整输出」切换等待词：
 // 用户发送后开始等待会固定一个词；当收到新的 TOOL/ASSISTANT/SYSTEM/TODO 完整消息后，
 // 下一段等待期再换一个词（不按秒抖动）。
@@ -463,12 +477,30 @@ const getMessageTimeClass = (type: string) => {
   box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.2), 0 6px 16px rgba(14, 165, 233, 0.08);
 }
 
+.assistant-wait-card-done {
+  box-shadow: none;
+}
+
 .wait-dot {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
   background: linear-gradient(135deg, #38bdf8, #6366f1);
   animation: waitDotBounce 0.9s ease-in-out infinite;
+}
+
+.wait-done-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 @keyframes thinkingPulse {
