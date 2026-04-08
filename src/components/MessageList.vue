@@ -154,16 +154,16 @@
       </div>
     </div>
 
-    <!-- 思考中状态 -->
+    <!-- 全局思考中状态（无后端 thinking 文本时的兜底可视化） -->
     <div v-if="isThinking" class="message-row flex justify-start">
-      <div class="message-bubble rounded-xl border border-[#eaeaea] bg-[#F8F8F8] px-3 py-2">
+      <div class="message-bubble thinking-global rounded-xl border border-sky-200/70 bg-gradient-to-r from-sky-50 via-cyan-50 to-indigo-50 px-3 py-2">
         <div class="flex items-center space-x-2">
           <div class="flex space-x-1">
-            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
-            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
-            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+            <div class="w-2 h-2 bg-sky-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+            <div class="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+            <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
           </div>
-          <span class="text-sm text-gray-500">思考中...</span>
+          <span class="text-sm text-sky-700 thinking-verb">{{ spinnerVerb }}...</span>
         </div>
       </div>
     </div>
@@ -389,5 +389,30 @@ const getMessageTimeClass = (type: string) => {
   border-radius: 12px;
   padding: 12px 16px;
   display: inline-block;
+}
+
+.thinking-global {
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.25), 0 8px 20px rgba(14, 165, 233, 0.08);
+  animation: thinkingPulse 1.8s ease-in-out infinite;
+}
+
+.thinking-verb {
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  animation: thinkingFade 1.2s ease-in-out infinite;
+}
+
+@keyframes thinkingPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.25), 0 8px 20px rgba(14, 165, 233, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45), 0 10px 26px rgba(59, 130, 246, 0.16);
+  }
+}
+
+@keyframes thinkingFade {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
 }
 </style>
