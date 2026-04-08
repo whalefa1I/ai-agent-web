@@ -113,7 +113,16 @@
           >
             {{ `userTurn=${String(row.message.metadata.userTurnId)}` }}
           </div>
-          <div class="markdown-body" v-html="renderMarkdown(row.message.content)"></div>
+          <div
+            v-if="row.message.subtype === 'assistant-wait-message'"
+            class="assistant-wait-card mt-1 inline-flex items-center gap-2 rounded-lg border border-sky-200/70 bg-gradient-to-r from-sky-50 via-cyan-50 to-indigo-50 px-2.5 py-1.5 text-sm text-sky-700"
+          >
+            <span class="wait-dot"></span>
+            <span class="wait-dot" style="animation-delay: 180ms"></span>
+            <span class="wait-dot" style="animation-delay: 360ms"></span>
+            <span class="thinking-verb">{{ spinnerVerb }}...</span>
+          </div>
+          <div v-else class="markdown-body" v-html="renderMarkdown(row.message.content)"></div>
         </template>
 
         <!-- 思考中状态 -->
@@ -402,6 +411,18 @@ const getMessageTimeClass = (type: string) => {
   animation: thinkingFade 1.2s ease-in-out infinite;
 }
 
+.assistant-wait-card {
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.2), 0 6px 16px rgba(14, 165, 233, 0.08);
+}
+
+.wait-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  animation: waitDotBounce 0.9s ease-in-out infinite;
+}
+
 @keyframes thinkingPulse {
   0%, 100% {
     box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.25), 0 8px 20px rgba(14, 165, 233, 0.08);
@@ -414,5 +435,16 @@ const getMessageTimeClass = (type: string) => {
 @keyframes thinkingFade {
   0%, 100% { opacity: 0.85; }
   50% { opacity: 1; }
+}
+
+@keyframes waitDotBounce {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-2px);
+    opacity: 1;
+  }
 }
 </style>
