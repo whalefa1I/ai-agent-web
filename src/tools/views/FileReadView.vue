@@ -27,10 +27,15 @@ const props = defineProps<{
   toolCall: ToolCallArtifact
 }>()
 
-// 与后端 LocalFileReadTool 一致：仅展示 file_path
+// Schema：file_path；兼容 filePath 展示
 const filePath = computed(() => {
   const i = props.toolCall.body?.input as Record<string, unknown> | undefined
-  return (i?.file_path as string) || props.toolCall.header?.inputSummary || ''
+  return (
+    (i?.file_path as string) ||
+    (i?.filePath as string) ||
+    props.toolCall.header?.inputSummary ||
+    ''
+  )
 })
 
 // 提取行信息

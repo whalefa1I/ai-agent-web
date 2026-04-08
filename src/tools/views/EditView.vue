@@ -43,9 +43,10 @@ const isFileWrite = computed(() => toolName.value === 'file_write')
 
 const input = computed(() => (props.toolCall.body?.input || {}) as Record<string, unknown>)
 
-// 与后端 LocalFileReadTool / LocalFileWriteTool / LocalFileEditTool 一致：仅 file_path
+// Schema：file_path；artifact 中可能为 filePath（与 FileToolArgs 对齐）
 const filePath = computed(() => {
-  const p = (input.value.file_path as string) || ''
+  const i = input.value
+  const p = ((i.file_path ?? i.filePath) as string) || ''
   if (p) return p
   return props.toolCall.header?.inputSummary ? String(props.toolCall.header.inputSummary) : ''
 })
