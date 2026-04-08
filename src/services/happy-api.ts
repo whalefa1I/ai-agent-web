@@ -520,7 +520,15 @@ export class HappyApiService {
           const header = this.parseHeader(a)
           return (
             header.type === 'message' &&
-            (header.subtype === 'assistant-message' || header.subtype === 'assistant-progress-message')
+            (
+              header.subtype === 'assistant-message' ||
+              header.subtype === 'assistant-progress-message' ||
+              header.subtype === 'assistant-loop-state-message' ||
+              header.subtype === 'compact-boundary-message' ||
+              header.subtype === 'tool-result-trim-message' ||
+              header.subtype === 'snip-history-message' ||
+              header.subtype === 'summary-compact-message'
+            )
           )
         } catch {
           return false

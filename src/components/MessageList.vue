@@ -27,6 +27,78 @@
           <div v-if="row.message.subtype === 'assistant-progress-message'" class="text-xs text-gray-500 mb-1">
             中间过程
           </div>
+          <div v-else-if="row.message.subtype === 'assistant-loop-state-message'" class="text-xs text-indigo-500 mb-1">
+            回合状态
+          </div>
+          <div v-else-if="row.message.subtype === 'compact-boundary-message'" class="text-xs text-amber-600 mb-1">
+            上下文压缩
+          </div>
+          <div v-else-if="row.message.subtype === 'tool-result-trim-message'" class="text-xs text-emerald-600 mb-1">
+            工具结果裁剪
+          </div>
+          <div v-else-if="row.message.subtype === 'snip-history-message'" class="text-xs text-cyan-600 mb-1">
+            历史切片
+          </div>
+          <div v-else-if="row.message.subtype === 'summary-compact-message'" class="text-xs text-violet-600 mb-1">
+            摘要压缩
+          </div>
+          <div
+            v-if="row.message.subtype === 'compact-boundary-message' && row.message.metadata"
+            class="mb-1 text-[11px] text-amber-700"
+          >
+            {{
+              `turn=${String(row.message.metadata.turnId || '')} · ` +
+              `compact=${String(row.message.metadata.compactId || '')} · ` +
+              `${String(row.message.metadata.preCompactCount || '?')}→${String(row.message.metadata.postCompactCount || '?')} · ` +
+              `phase=${String(row.message.metadata.phase || '?')} · ` +
+              `parent=${String(row.message.metadata.parentId || '?')}`
+            }}
+          </div>
+          <div
+            v-else-if="row.message.subtype === 'tool-result-trim-message' && row.message.metadata"
+            class="mb-1 text-[11px] text-emerald-700"
+          >
+            {{
+              `trimmed=${String(row.message.metadata.trimmedResponses || '?')} · ` +
+              `chars=${String(row.message.metadata.trimmedChars || '?')} · ` +
+              `limit=${String(row.message.metadata.maxCharsPerResponse || '?')} · ` +
+              `phase=${String(row.message.metadata.phase || '?')} · ` +
+              `parent=${String(row.message.metadata.parentId || '?')}`
+            }}
+          </div>
+          <div
+            v-else-if="row.message.subtype === 'snip-history-message' && row.message.metadata"
+            class="mb-1 text-[11px] text-cyan-700"
+          >
+            {{
+              `snipped=${String(row.message.metadata.snippedMessages || '?')} · ` +
+              `chars=${String(row.message.metadata.beforeChars || '?')}→${String(row.message.metadata.afterChars || '?')} · ` +
+              `budget=${String(row.message.metadata.snipBudgetChars || '?')} · ` +
+              `phase=${String(row.message.metadata.phase || '?')} · ` +
+              `parent=${String(row.message.metadata.parentId || '?')}`
+            }}
+          </div>
+          <div
+            v-else-if="row.message.subtype === 'summary-compact-message' && row.message.metadata"
+            class="mb-1 text-[11px] text-violet-700"
+          >
+            {{
+              `chars=${String(row.message.metadata.beforeChars || '?')}→${String(row.message.metadata.afterChars || '?')} · ` +
+              `count=${String(row.message.metadata.beforeCount || '?')}→${String(row.message.metadata.afterCount || '?')} · ` +
+              `phase=${String(row.message.metadata.phase || '?')} · ` +
+              `parent=${String(row.message.metadata.parentId || '?')}`
+            }}
+          </div>
+          <div
+            v-else-if="row.message.subtype === 'assistant-loop-state-message' && row.message.metadata"
+            class="mb-1 text-[11px] text-indigo-700"
+          >
+            {{
+              `turn=${String(row.message.metadata.turnId || '')} · ` +
+              `batch=${String(row.message.metadata.toolBatchId || '')} · ` +
+              `tools=${String(row.message.metadata.toolCallCount || '?')}`
+            }}
+          </div>
           <div class="markdown-body" v-html="renderMarkdown(row.message.content)"></div>
         </template>
 

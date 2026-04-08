@@ -197,9 +197,13 @@ export const useChatStore = defineStore('chat', () => {
         type: 'ASSISTANT' as const,
         subtype: String((m.header as any)?.subtype || 'assistant-message'),
         content: m.body.content,
+        metadata:
+          m.body && typeof m.body === 'object' && (m.body as any).metadata
+            ? ((m.body as any).metadata as Record<string, unknown>)
+            : undefined,
         timestamp: new Date(timelineMs(m)).toISOString(),
-        inputTokens: m.body.inputTokens,
-        outputTokens: m.body.outputTokens
+        inputTokens: typeof (m.body as any).inputTokens === 'number' ? (m.body as any).inputTokens : undefined,
+        outputTokens: typeof (m.body as any).outputTokens === 'number' ? (m.body as any).outputTokens : undefined
       })
     })
 

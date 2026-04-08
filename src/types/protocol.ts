@@ -153,6 +153,7 @@ export interface ChatMessageDTO {
   type: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL' | 'TODO' | 'THINKING'
   subtype?: string
   content: string
+  metadata?: Record<string, unknown>
   timestamp: string
   inputTokens?: number
   outputTokens?: number
