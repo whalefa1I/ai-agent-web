@@ -120,9 +120,13 @@
             <span class="wait-dot"></span>
             <span class="wait-dot" style="animation-delay: 180ms"></span>
             <span class="wait-dot" style="animation-delay: 360ms"></span>
-            <span class="thinking-verb">{{ spinnerVerb }}...</span>
+            <span class="thinking-verb">{{ waitDisplayText }}</span>
           </div>
-          <div v-else class="markdown-body" v-html="renderMarkdown(row.message.content)"></div>
+          <div
+            v-else-if="row.message.subtype !== 'assistant-loop-state-message'"
+            class="markdown-body"
+            v-html="renderMarkdown(row.message.content)"
+          ></div>
         </template>
 
         <!-- 思考中状态 -->
@@ -172,7 +176,7 @@
             <div class="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
             <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
           </div>
-          <span class="text-sm text-sky-700 thinking-verb">{{ spinnerVerb }}...</span>
+          <span class="text-sm text-sky-700 thinking-verb">{{ waitDisplayText }}</span>
         </div>
       </div>
     </div>
@@ -210,6 +214,7 @@ function rowKind(row: ChatDisplayRow): string {
   return row.message?.type || 'SYSTEM'
 }
 const isThinking = computed(() => chatStore.isThinking)
+const waitPhase = computed(() => chatStore.waitPhase)
 const SPINNER_VERBS = [
   // Claude Code 风格词（英文）
   'Thinking',
@@ -245,6 +250,10 @@ const SPINNER_VERBS = [
 ]
 const spinnerVerb = ref('思考中')
 const lastSpinnerKey = ref<string>('')
+const waitDisplayText = computed(() => {
+  if (waitPhase.value === 'tool_done') return '已完成，继续处理中...'
+  return `${spinnerVerb.value}...`
+})
 
 function randomSpinnerVerb(): string {
   return SPINNER_VERBS[Math.floor(Math.random() * SPINNER_VERBS.length)] || '思考中'

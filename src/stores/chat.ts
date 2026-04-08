@@ -20,6 +20,8 @@ export const useChatStore = defineStore('chat', () => {
   const todos = ref<TodoArtifact[]>([])
   const stats = ref<SessionStats | null>(null)
   const isThinking = ref(false)
+  const activeUserTurnId = ref<string | null>(null)
+  const waitPhase = ref<'idle' | 'waiting' | 'tool_done'>('idle')
   const apiService = ref<HappyApiService>(new HappyApiService())
   const stopPolling = ref<(() => void) | null>(null)
   const pollingFailureCount = ref(0)
@@ -78,6 +80,8 @@ export const useChatStore = defineStore('chat', () => {
         pollingFailureCount.value += 1
         if (pollingFailureCount.value >= 3 && isThinking.value) {
           isThinking.value = false
+          waitPhase.value = 'idle'
+          activeUserTurnId.value = null
           messages.value = messages.value.filter(m => m.type !== 'THINKING')
           addAssistantMessage(
             `连接中断，已停止等待。请检查服务地址与网络后重试。` +
@@ -144,6 +148,7 @@ export const useChatStore = defineStore('chat', () => {
     const toolCalls = apiService.value.extractToolCalls(artifacts)
     const todoItems = apiService.value.extractTodos(artifacts)
     const permissions = apiService.value.extractPendingPermissions(artifacts)
+    const latestUserMessageAt = userMessages.length > 0 ? Math.max(...userMessages.map(m => timelineMs(m))) : 0
 
     // 构建聊天流消息（按时间排序，工具和待办嵌入到流中）
     const allMessages: ChatMessageDTO[] = []
@@ -237,13 +242,49 @@ export const useChatStore = defineStore('chat', () => {
 
     messages.value = allMessages
 
-    // 有助手消息时，清除思考状态
-    if (assistantMessages.length > 0 && isThinking.value) {
-      const hasContent = assistantMessages.some(m => m.body.content && m.body.content.trim())
-      if (hasContent) {
-        console.log('检测到助手回复内容，清除 isThinking')
-        isThinking.value = false
-      }
+    // 当前回合门控：仅显示当前 userTurn 的等待状态，避免历史轮次误亮
+    const latestTurnCarrier = [...assistantMessages]
+      .filter(m => {
+        const metadata = (m.body as any)?.metadata
+        return metadata && metadata.userTurnId
+      })
+      .sort((a, b) => timelineMs(a) - timelineMs(b))
+      .at(-1)
+    const latestSeenUserTurnId = latestTurnCarrier
+      ? String(((latestTurnCarrier.body as any)?.metadata?.userTurnId) || '')
+      : ''
+
+    if (isThinking.value && !activeUserTurnId.value && latestSeenUserTurnId) {
+      activeUserTurnId.value = latestSeenUserTurnId
+    }
+    if (!isThinking.value) {
+      waitPhase.value = 'idle'
+    } else if (waitPhase.value === 'idle') {
+      waitPhase.value = 'waiting'
+    }
+
+    const hasActiveFinalAssistant = assistantMessages.some(m => {
+      const subtype = String((m.header as any)?.subtype || '')
+      const content = String((m.body as any)?.content || '').trim()
+      const turnId = String(((m.body as any)?.metadata?.userTurnId) || '')
+      if (subtype !== 'assistant-message' || !content) return false
+      if (!activeUserTurnId.value) return true
+      return turnId === activeUserTurnId.value
+    })
+
+    if (hasActiveFinalAssistant && isThinking.value) {
+      console.log('检测到当前回合最终助手回复，清除 isThinking')
+      isThinking.value = false
+      waitPhase.value = 'idle'
+      activeUserTurnId.value = null
+    } else if (isThinking.value) {
+      const hasToolCompletedInCurrentRound = toolCalls.some(tc => {
+        const body = (tc.body ?? {}) as Record<string, unknown>
+        const status = String(body.status || '').toLowerCase()
+        if (status !== 'completed' && status !== 'failed' && status !== 'error') return false
+        return timelineMs(tc) >= latestUserMessageAt
+      })
+      waitPhase.value = hasToolCompletedInCurrentRound ? 'tool_done' : 'waiting'
     }
 
     // 更新独立的工具列表（保持向后兼容）
@@ -275,10 +316,17 @@ export const useChatStore = defineStore('chat', () => {
           // 收到助手回复后，清除思考状态并移除 thinking 消息
           if (header.subtype === 'assistant-message') {
             const body = apiService.value.parseBody(artifact)
+            const bodyTurnId = String((body as any)?.metadata?.userTurnId || '')
             // 只有在收到最终回复内容后才清除 isThinking
-            if (body.content && body.content.trim()) {
+            if (
+              body.content &&
+              body.content.trim() &&
+              (!activeUserTurnId.value || !bodyTurnId || bodyTurnId === activeUserTurnId.value)
+            ) {
               console.log('收到助手回复内容，清除 isThinking')
               isThinking.value = false
+              waitPhase.value = 'idle'
+              activeUserTurnId.value = null
               // 仅移除本地占位的空 thinking，不移除后端返回的 thinking 内容
               messages.value = messages.value.filter(m => !(m.type === 'THINKING' && !m.content))
             }
@@ -359,6 +407,8 @@ export const useChatStore = defineStore('chat', () => {
     addUserMessage(content)
 
     isThinking.value = true
+    waitPhase.value = 'waiting'
+    activeUserTurnId.value = null
 
     try {
       // 创建 user message artifact
@@ -369,6 +419,8 @@ export const useChatStore = defineStore('chat', () => {
     } catch (error) {
       console.error('发送消息失败:', error)
       isThinking.value = false
+      waitPhase.value = 'idle'
+      activeUserTurnId.value = null
       addAssistantMessage(`错误：${error instanceof Error ? error.message : '发送失败'}`)
     }
   }
@@ -395,6 +447,10 @@ export const useChatStore = defineStore('chat', () => {
    */
   async function loadHistory(limit: number = 50) {
     try {
+      // 加载历史场景不展示当前回合等待态
+      isThinking.value = false
+      waitPhase.value = 'idle'
+      activeUserTurnId.value = null
       const artifacts = await apiService.value.getArtifacts()
       processArtifacts(artifacts)
     } catch (error) {
@@ -442,6 +498,7 @@ export const useChatStore = defineStore('chat', () => {
     todos,
     stats,
     isThinking,
+    waitPhase,
     serverUrl,
     sessionId,
     userId,
