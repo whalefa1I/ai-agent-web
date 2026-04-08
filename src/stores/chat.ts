@@ -358,15 +358,6 @@ export const useChatStore = defineStore('chat', () => {
 
     addUserMessage(content)
 
-    // 添加 thinking 消息到消息流（显示在工具块之后）
-    const thinkingId = `thinking-${Date.now()}`
-    messages.value.push({
-      id: thinkingId,
-      type: 'THINKING' as const,
-      content: '',
-      timestamp: new Date().toISOString()
-    })
-
     isThinking.value = true
 
     try {
@@ -378,8 +369,6 @@ export const useChatStore = defineStore('chat', () => {
     } catch (error) {
       console.error('发送消息失败:', error)
       isThinking.value = false
-      // 移除 thinking 消息
-      messages.value = messages.value.filter(m => m.id !== thinkingId)
       addAssistantMessage(`错误：${error instanceof Error ? error.message : '发送失败'}`)
     }
   }

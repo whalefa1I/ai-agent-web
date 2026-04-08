@@ -127,7 +127,7 @@
                   <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
                   <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
                 </div>
-                <span class="text-sm text-gray-500">思考中...</span>
+                <span class="text-sm text-gray-500">{{ spinnerVerb }}...</span>
               </div>
             </template>
           </div>
@@ -170,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { marked } from 'marked'
 import ToolCalls from './ToolCalls.vue'
@@ -198,6 +198,39 @@ function rowKind(row: ChatDisplayRow): string {
   return row.message?.type || 'SYSTEM'
 }
 const isThinking = computed(() => chatStore.isThinking)
+const SPINNER_VERBS = [
+  '思考中',
+  '推理中',
+  '分析中',
+  '计算中',
+  '整理中',
+  '斟酌中',
+  '处理中',
+  '检索中',
+  '归纳中',
+  '比对中',
+  '构思中',
+  '校验中',
+  '生成中',
+  '润色中',
+  '编排中',
+  '拆解中',
+  '聚合中',
+  '判断中',
+  '联想中',
+  '确认中'
+]
+const spinnerVerb = ref('思考中')
+
+function randomSpinnerVerb(): string {
+  return SPINNER_VERBS[Math.floor(Math.random() * SPINNER_VERBS.length)] || '思考中'
+}
+
+watch(isThinking, (now, prev) => {
+  if (now && !prev) {
+    spinnerVerb.value = randomSpinnerVerb()
+  }
+})
 // 组件挂载日志
 onMounted(() => {
   logger.logComponentMount('MessageList', { messagesCount: messages.value.length })
