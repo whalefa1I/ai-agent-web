@@ -11,6 +11,9 @@
       <span class="file-path">{{ filePath }}</span>
       <span v-if="lineInfo" class="line-info">{{ lineInfo }}</span>
     </div>
+    <div v-if="relativePathHint && !errorMessage" class="path-hint">
+      {{ relativePathHint }}
+    </div>
 
     <!-- 文件内容 -->
     <div v-else-if="!errorMessage" class="content-section">
@@ -22,7 +25,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ToolCallArtifact } from '@/types/happy-protocol'
-import { resolveFilePathFromToolInput } from '@/utils/file-tool-input'
+import { isLikelyAbsolutePath, resolveFilePathFromToolInput } from '@/utils/file-tool-input'
 
 const props = defineProps<{
   toolCall: ToolCallArtifact
@@ -33,6 +36,13 @@ const filePath = computed(() => {
     props.toolCall.body?.input as Record<string, unknown> | undefined
   )
   return p || props.toolCall.header?.inputSummary || ''
+})
+
+const relativePathHint = computed(() => {
+  const p = filePath.value
+  if (!p) return ''
+  if (isLikelyAbsolutePath(p)) return ''
+  return '提示：相对路径会在服务端按 workspaceRoot 解析；若读不到文件，请改用绝对路径或先 glob/ls 确认位置。'
 })
 
 // 提取行信息
@@ -122,6 +132,18 @@ const content = computed(() => {
   gap: 12px;
   margin-bottom: 12px;
   flex-wrap: wrap;
+}
+
+.path-hint {
+  margin: -6px 0 12px 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .file-path {

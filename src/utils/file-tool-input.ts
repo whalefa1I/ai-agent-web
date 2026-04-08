@@ -12,6 +12,12 @@ export function resolveFilePathFromToolInput(
   return s
 }
 
+export function isLikelyAbsolutePath(p: string): boolean {
+  if (!p) return false
+  // Windows: C:\...  | POSIX: /...
+  return /^[A-Za-z]:\\/.test(p) || p.startsWith('/')
+}
+
 /**
  * 与 ai-agent-server {@code FilesystemPathArgs} 顺序一致：path → file_path → filePath。
  * 用于 glob / grep / ls / FileDelete / local_mkdir 等「搜索根或单一路径」展示。
