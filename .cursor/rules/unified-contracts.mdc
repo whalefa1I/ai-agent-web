@@ -6,5 +6,5 @@ alwaysApply: true
 # 契约与兼容性
 
 - **单一事实来源**：工具入参、错误语义、字段名以后端 Java 工具实现与对外 JSON Schema 为准（与 Claude Code 命名一致）；前端展示与类型定义与之对齐，不另起一套命名体系。
-- **少做散落兼容**：禁止在同一概念上多处写 `file_path ?? filePath` 式重复分支。若上游客观存在多种形态，**集中在一处**（例如后端仅 `FileToolArgs`、前端仅一个 `resolveXxx` 小函数），并加一行注释说明为何集中处理。
+- **少做散落兼容**：禁止在同一概念上多处写 `file_path ?? filePath ?? path` 式重复分支。路径类参数在后端仅 `FileToolArgs`、在前端仅 `resolveFilePathFromToolInput`，顺序与后端一致。
 - **优先统一再映射**：优先用提示词、Schema、工程约定把模型与客户端压到同一字段名；确需别名字段时，只在边界层做一次归一化，避免层层兜底。

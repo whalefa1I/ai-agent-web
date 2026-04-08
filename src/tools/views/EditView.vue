@@ -28,6 +28,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ToolCallArtifact } from '@/types/happy-protocol'
+import { resolveFilePathFromToolInput } from '@/utils/file-tool-input'
 
 const props = defineProps<{
   toolCall: ToolCallArtifact
@@ -43,10 +44,8 @@ const isFileWrite = computed(() => toolName.value === 'file_write')
 
 const input = computed(() => (props.toolCall.body?.input || {}) as Record<string, unknown>)
 
-// Schema：file_path；artifact 中可能为 filePath（与 FileToolArgs 对齐）
 const filePath = computed(() => {
-  const i = input.value
-  const p = ((i.file_path ?? i.filePath) as string) || ''
+  const p = resolveFilePathFromToolInput(input.value)
   if (p) return p
   return props.toolCall.header?.inputSummary ? String(props.toolCall.header.inputSummary) : ''
 })

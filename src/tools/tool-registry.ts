@@ -5,6 +5,11 @@
  * 与 claude-code 协议保持一致
  */
 
+import {
+  resolveFilePathFromToolInput,
+  resolveSearchRootPathFromInput
+} from '@/utils/file-tool-input'
+
 // 工具状态枚举
 export type ToolState = 'started' | 'in_progress' | 'completed' | 'failed' | 'pending'
 
@@ -68,20 +73,20 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     }
   },
 
-  // 文件读取工具（Schema：file_path；展示兼容 filePath，与 FileToolArgs 对齐）
+  // 文件读取工具（路径展示与 FileToolArgs 一致）
   file_read: {
     name: 'file_read',
     displayName: '读取文件',
     icon: 'file',
     minimal: true,
     extractTitle: (input) => {
-      const filePath = (input.file_path ?? input.filePath) as string
+      const filePath = resolveFilePathFromToolInput(input)
       if (!filePath) return '读取文件'
       const parts = String(filePath).split(/[\\/]/)
       return parts[parts.length - 1] || '读取文件'
     },
     extractDescription: (input) => {
-      const filePath = (input.file_path ?? input.filePath) as string
+      const filePath = resolveFilePathFromToolInput(input)
       const offset = input.offset as number
       const limit = input.limit as number
       if (!filePath) return '读取文件'
@@ -92,20 +97,20 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     }
   },
 
-  // 文件写入工具（Schema：file_path + content；展示兼容 filePath）
+  // 文件写入工具
   file_write: {
     name: 'file_write',
     displayName: '写入文件',
     icon: 'edit',
     minimal: false,
     extractTitle: (input) => {
-      const filePath = (input.file_path ?? input.filePath) as string
+      const filePath = resolveFilePathFromToolInput(input)
       if (!filePath) return '写入文件'
       const parts = String(filePath).split(/[\\/]/)
       return parts[parts.length - 1] || '写入文件'
     },
     extractDescription: (input) => {
-      const filePath = (input.file_path ?? input.filePath) as string
+      const filePath = resolveFilePathFromToolInput(input)
       return filePath ? `写入：${filePath}` : '写入文件'
     }
   },
@@ -117,13 +122,13 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'edit',
     minimal: false,
     extractTitle: (input) => {
-      const filePath = input.file_path as string
+      const filePath = resolveFilePathFromToolInput(input)
       if (!filePath) return '编辑文件'
       const parts = filePath.split(/[\\/]/)
       return parts[parts.length - 1] || '编辑文件'
     },
     extractDescription: (input) => {
-      const filePath = input.file_path as string
+      const filePath = resolveFilePathFromToolInput(input)
       const oldString = input.old_string as string
       const newString = input.new_string as string
       const snippet = oldString ? `"${oldString.substring(0, 20)}${oldString.length > 20 ? '...' : ''}" → "${newString?.substring(0, 20) || ''}${(newString?.length || 0) > 20 ? '...' : ''}"` : ''
@@ -143,7 +148,7 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     },
     extractDescription: (input) => {
       const pattern = input.pattern as string
-      const path = input.path as string
+      const path = resolveSearchRootPathFromInput(input)
       if (path) return `${pattern} (in ${path})`
       return pattern
     }
@@ -161,7 +166,7 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     },
     extractDescription: (input) => {
       const pattern = input.pattern as string
-      const path = input.path as string
+      const path = resolveSearchRootPathFromInput(input)
       if (path) return `在 ${path} 中搜索 "${pattern}"`
       return `搜索 "${pattern}"`
     }
@@ -174,13 +179,13 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'file',
     minimal: true,
     extractTitle: (input) => {
-      const path = input.path as string
+      const path = resolveSearchRootPathFromInput(input)
       if (!path) return '列出目录'
       const parts = path.split(/[\\/]/)
       return parts[parts.length - 1] || '列出目录'
     },
     extractDescription: (input) => {
-      const path = input.path as string
+      const path = resolveSearchRootPathFromInput(input)
       const recursive = input.recursive as boolean
       return `列出目录：${path}${recursive ? ' (递归)' : ''}`
     }
@@ -500,13 +505,13 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'file',
     minimal: true,
     extractTitle: (input) => {
-      const path = input.path as string
+      const path = resolveSearchRootPathFromInput(input)
       if (!path) return '删除文件'
       const parts = path.split(/[\\/]/)
       return parts[parts.length - 1] || '删除文件'
     },
     extractDescription: (input) => {
-      const path = input.path as string
+      const path = resolveSearchRootPathFromInput(input)
       const recursive = input.recursive as boolean
       return `删除：${path}${recursive ? ' (递归)' : ''}`
     }
@@ -538,14 +543,14 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     minimal: true,
     extractTitle: (input) => {
       const action = input.action as string
-      const path = input.path as string
+      const path = resolveSearchRootPathFromInput(input)
       if (!path) return action || '目录操作'
       const parts = path.split(/[\\/]/)
       return `${action || 'create'}: ${parts[parts.length - 1]}`
     },
     extractDescription: (input) => {
       const action = input.action as string
-      const path = input.path as string
+      const path = resolveSearchRootPathFromInput(input)
       const recursive = input.recursive as boolean
       const actionText = action === 'create' ? '创建' : action === 'list' ? '列出' : '删除'
       return `${actionText}目录：${path}${recursive ? ' (递归)' : ''}`

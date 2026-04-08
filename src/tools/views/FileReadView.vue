@@ -22,20 +22,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ToolCallArtifact } from '@/types/happy-protocol'
+import { resolveFilePathFromToolInput } from '@/utils/file-tool-input'
 
 const props = defineProps<{
   toolCall: ToolCallArtifact
 }>()
 
-// Schema：file_path；兼容 filePath 展示
 const filePath = computed(() => {
-  const i = props.toolCall.body?.input as Record<string, unknown> | undefined
-  return (
-    (i?.file_path as string) ||
-    (i?.filePath as string) ||
-    props.toolCall.header?.inputSummary ||
-    ''
+  const p = resolveFilePathFromToolInput(
+    props.toolCall.body?.input as Record<string, unknown> | undefined
   )
+  return p || props.toolCall.header?.inputSummary || ''
 })
 
 // 提取行信息
