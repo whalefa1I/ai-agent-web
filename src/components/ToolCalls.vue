@@ -67,11 +67,10 @@ import { toolViews } from '@/tools/views'
 import { getToolMetadata, TOOL_ICONS } from '@/tools/tool-registry'
 import { logger } from '@/utils/debug-logger'
 
-import TodoView from '@/tools/views/TodoView.vue'
 import BashView from '@/tools/views/BashView.vue'
 import EditView from '@/tools/views/EditView.vue'
 import FileReadView from '@/tools/views/FileReadView.vue'
-import TaskView from '@/tools/views/TaskView.vue'
+import TaskToolView from '@/components/happy-protocol/TaskToolView.vue'
 import AskUserQuestionView from '@/tools/views/AskUserQuestionView.vue'
 import ExitPlanModeView from '@/tools/views/ExitPlanModeView.vue'
 import LSView from '@/tools/views/LSView.vue'
@@ -100,9 +99,6 @@ const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
 
   // 根据工具类型返回专用视图组件
   switch (toolName) {
-    case 'todo_write':
-      logger.info('ToolCalls', 'Routing to TodoView')
-      return TodoView
     case 'bash':
       logger.info('ToolCalls', 'Routing to BashView')
       return BashView
@@ -113,15 +109,15 @@ const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
     case 'file_read':
       logger.info('ToolCalls', 'Routing to FileReadView')
       return FileReadView
-    // Task 工具集
+    // Task 工具集 - 使用统一的 TaskToolView 组件
     case 'TaskCreate':
     case 'TaskList':
     case 'TaskGet':
     case 'TaskUpdate':
     case 'TaskStop':
     case 'TaskOutput':
-      logger.info('ToolCalls', `Routing to TaskView for ${toolName}`)
-      return TaskView
+      logger.info('ToolCalls', `Routing to TaskToolView for ${toolName}`)
+      return TaskToolView
     // AskUserQuestion 工具
     case 'AskUserQuestion':
       logger.info('ToolCalls', 'Routing to AskUserQuestionView')

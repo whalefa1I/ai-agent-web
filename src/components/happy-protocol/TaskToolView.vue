@@ -1,340 +1,449 @@
 <template>
   <div class="task-tool-view">
-    <!-- TaskCreate: 显示任务创建 -->
-    <div v-if="tool.name === 'TaskCreate'" class="task-create">
-      <div class="task-item">
-        <span class="task-checkbox" :class="taskStatus">
-          {{ getCheckboxSymbol(taskStatus) }}
-        </span>
-        <div class="task-info">
-          <div class="task-subject">{{ taskSubject }}</div>
-          <div v-if="taskDescription" class="task-description">{{ taskDescription }}</div>
-          <div v-if="taskActiveForm" class="task-active-form">{{ taskActiveForm }}</div>
-          <div v-if="taskId" class="task-id">ID: {{ taskId }}</div>
-        </div>
+    <!-- 工具头部 - 可展开/收起 -->
+    <div class="tool-header" @click="toggleExpand">
+      <div class="tool-icon">
+        <span class="icon">📋</span>
+      </div>
+      <div class="tool-info">
+        <div class="tool-title">Task List</div>
+        <div class="tool-subtitle">{{ subtitle }}</div>
+      </div>
+      <div class="tool-status">
+        <button class="expand-btn">
+          <span :class="{ 'rotated': isExpanded }">›</span>
+        </button>
       </div>
     </div>
 
-    <!-- TaskUpdate: 显示任务更新 -->
-    <div v-else-if="tool.name === 'TaskUpdate'" class="task-update">
-      <div class="task-item">
-        <span class="task-checkbox" :class="updateStatus">
-          {{ getCheckboxSymbol(updateStatus) }}
-        </span>
-        <div class="task-info">
-          <div class="task-subject">{{ updateSubject || taskSubjectFromId }}</div>
-          <div v-if="updateStatus" class="task-status-badge" :class="updateStatus">
-            {{ getStatusLabel(updateStatus) }}
+    <!-- 展开内容：待办列表 -->
+    <div v-if="isExpanded" class="tool-content">
+      <!-- Todos 列表 -->
+      <div v-if="todos && todos.length > 0" class="todo-list">
+        <div
+          v-for="(todo, index) in todos"
+          :key="todo.id || index"
+          class="todo-item"
+          :class="todo.status"
+        >
+          <div class="todo-checkbox">
+            <span class="checkbox-mark">
+              {{ getCheckboxSymbol(todo.status) }}
+            </span>
           </div>
-          <div v-if="taskId" class="task-id">ID: {{ taskId }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TaskList: 显示任务列表 -->
-    <div v-else-if="tool.name === 'TaskList'" class="task-list">
-      <div class="task-list-header">
-        <span class="list-title">Tasks</span>
-        <span class="list-count">{{ taskList.length }} total</span>
-      </div>
-      <div class="task-list-items">
-        <div v-for="task in taskList" :key="task.id" class="task-item">
-          <span class="task-checkbox" :class="task.status">
-            {{ getCheckboxSymbol(task.status) }}
-          </span>
-          <div class="task-info">
-            <div class="task-subject">{{ task.subject }}</div>
-            <div v-if="task.description" class="task-description">{{ task.description }}</div>
+          <div class="todo-content-text">
+            <div class="todo-text" :class="{ 'completed': todo.status === 'completed' }">
+              {{ todo.content }}
+            </div>
+            <div v-if="todo.activeForm && todo.status === 'in_progress'" class="todo-active-form">
+              {{ todo.activeForm }}
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- TaskGet/TaskStop/TaskOutput: 显示操作信息 -->
-    <div v-else class="task-action">
-      <div class="task-item">
-        <span class="task-checkbox">◻</span>
-        <div class="task-info">
-          <div class="task-action-label">{{ actionLabel }}</div>
-          <div v-if="taskId" class="task-id">Task: {{ taskId }}</div>
+      <!-- 空状态 -->
+      <div v-else-if="!todos || todos.length === 0" class="todo-empty">
+        <span class="empty-icon">📋</span>
+        <span class="empty-text">No tasks</span>
+      </div>
+
+      <!-- 错误信息 -->
+      <div v-if="errorText" class="todo-error">
+        <span class="error-icon">❌</span>
+        <span class="error-text">{{ errorText }}</span>
+      </div>
+
+      <!-- 输入/输出 展示 -->
+      <div class="io-sections">
+        <!-- Input 部分 -->
+        <div v-if="showInput && inputContent" class="io-section input-section">
+          <div class="io-header">
+            <span class="io-label input-label">Input</span>
+          </div>
+          <pre class="io-content">{{ inputContent }}</pre>
+        </div>
+
+        <!-- Output 部分 -->
+        <div v-if="showOutput && outputContent" class="io-section output-section">
+          <div class="io-header">
+            <span class="io-label output-label">Output</span>
+          </div>
+          <pre class="io-content">{{ outputContent }}</pre>
         </div>
       </div>
-    </div>
-
-    <!-- 错误信息 -->
-    <div v-if="tool.state === 'error'" class="task-error">
-      <span class="error-icon">❌</span>
-      <span class="error-text">{{ errorText }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { ToolCall, Metadata } from '@/types/happy-protocol';
+import { computed, ref, onMounted } from 'vue';
+import type { ToolCallArtifact } from '@/types/happy-protocol';
+import { logger } from '@/utils/debug-logger';
 
-interface Props {
-  tool: ToolCall;
-  metadata?: Metadata | null;
+interface TodoItem {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm?: string;
+  id?: string;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  metadata: null
+interface Props {
+  toolCall: ToolCallArtifact;
+}
+
+const props = defineProps<Props>();
+
+const isExpanded = ref(true);
+
+// 组件挂载日志
+onMounted(() => {
+  logger.logComponentMount('TaskToolView', {
+    toolCallId: props.toolCall?.id,
+    toolName: props.toolCall?.header?.subtype || props.toolCall?.header?.toolName
+  });
 });
 
-// 从 tool.result.metadata 中提取 task 信息
-const taskMetadata = computed(() => {
-  if (props.tool.result && typeof props.tool.result === 'object') {
-    const result = props.tool.result as Record<string, unknown>;
-    if (result.metadata) {
-      const metadata = result.metadata as Record<string, unknown>;
-      if (metadata.task) {
-        return metadata.task as Record<string, unknown>;
-      }
+// 从 toolCall 中提取 todos
+const todos = computed(() => {
+  // 1. 首先尝试从 result.metadata.todos 获取（Task* 工具）
+  if (props.toolCall.body?.metadata) {
+    const metadata = props.toolCall.body.metadata as Record<string, unknown>;
+    if (metadata.todos && Array.isArray(metadata.todos)) {
+      return metadata.todos.map((todo: any) => ({
+        content: todo.content || todo.subject || 'Unnamed',
+        status: (todo.status || 'pending') as 'pending' | 'in_progress' | 'completed',
+        activeForm: todo.activeForm,
+        id: todo.id
+      }));
+    }
+    // 2. 尝试从 metadata.task 获取单个任务
+    if (metadata.task) {
+      const task = metadata.task as Record<string, unknown>;
+      return [{
+        content: (task.subject as string) || (task.content as string) || 'Unnamed Task',
+        status: (task.status as 'pending' | 'in_progress' | 'completed') || 'pending',
+        activeForm: task.activeForm as string,
+        id: task.id as string
+      }];
     }
   }
-  return null;
-});
 
-// TaskCreate 相关
-const taskSubject = computed(() => {
-  return (props.tool.args?.subject as string) || 'Unnamed Task';
-});
-
-const taskDescription = computed(() => {
-  return (props.tool.args?.description as string) || '';
-});
-
-const taskActiveForm = computed(() => {
-  return (props.tool.args?.activeForm as string) || '';
-});
-
-const taskId = computed(() => {
-  return taskMetadata.value?.id as string || '';
-});
-
-const taskStatus = computed(() => {
-  return taskMetadata.value?.status as string || 'pending';
-});
-
-// TaskUpdate 相关
-const updateStatus = computed(() => {
-  return (props.tool.args?.status as string) || taskMetadata.value?.status as string || '';
-});
-
-const updateSubject = computed(() => {
-  return (props.tool.args?.subject as string) || '';
-});
-
-const taskSubjectFromId = computed(() => {
-  return taskMetadata.value?.subject as string || '';
-});
-
-// TaskList 相关
-const taskList = computed(() => {
-  if (props.tool.result && typeof props.tool.result === 'object') {
-    const result = props.tool.result as Record<string, unknown>;
-    if (result.metadata) {
-      const metadata = result.metadata as Record<string, unknown>;
-      if (metadata.tasks && Array.isArray(metadata.tasks)) {
-        return metadata.tasks as Array<Record<string, unknown>>;
-      }
+  // 3. 尝试从 input.todos 获取（声明式输入）
+  if (props.toolCall.body?.input) {
+    const input = props.toolCall.body.input as Record<string, unknown>;
+    if (input.todos && Array.isArray(input.todos)) {
+      return input.todos.map((todo: any) => ({
+        content: todo.content || 'Unnamed',
+        status: (todo.status || 'pending') as 'pending' | 'in_progress' | 'completed',
+        activeForm: todo.activeForm,
+        id: todo.id
+      }));
     }
   }
+
+  // 4. 尝试从 output 中解析（兼容旧格式）
+  const output = props.toolCall.body?.output as string;
+  if (output) {
+    const todos: TodoItem[] = [];
+    const lines = output.split('\n');
+    let currentTodo: Partial<TodoItem> = {};
+
+    for (const line of lines) {
+      if (line.includes('Created todo item:') || line.startsWith('- [')) {
+        if (currentTodo.content) {
+          todos.push(currentTodo as TodoItem);
+        }
+        currentTodo = {};
+        // 解析 markdown checkbox 格式：- [x] content
+        const checkboxMatch = line.match(/- \[(.)\] (.+)/);
+        if (checkboxMatch) {
+          const checkbox = checkboxMatch[1];
+          const content = checkboxMatch[2];
+          currentTodo.content = content;
+          currentTodo.status = checkbox === 'x' ? 'completed' : checkbox === '~' ? 'in_progress' : 'pending';
+        }
+      } else if (line.includes('Content:')) {
+        currentTodo.content = line.replace('Content:', '').trim();
+      } else if (line.includes('Status:')) {
+        const statusStr = line.replace('Status:', '').trim().toLowerCase();
+        if (statusStr.includes('pending')) currentTodo.status = 'pending';
+        else if (statusStr.includes('progress')) currentTodo.status = 'in_progress';
+        else if (statusStr.includes('completed')) currentTodo.status = 'completed';
+      } else if (line.includes('ID:')) {
+        currentTodo.id = line.replace('ID:', '').trim();
+      }
+    }
+
+    if (currentTodo.content) {
+      todos.push(currentTodo as TodoItem);
+    }
+
+    if (todos.length > 0) {
+      return todos;
+    }
+  }
+
   return [];
 });
 
-// TaskGet/TaskStop/TaskOutput 相关
-const actionLabel = computed(() => {
-  const name = props.tool.name;
-  if (name === 'TaskGet') return 'Get task details';
-  if (name === 'TaskOutput') return 'Get task output';
-  if (name === 'TaskStop') return 'Stop task';
-  return 'Task action';
+// 副标题：显示任务统计
+const subtitle = computed(() => {
+  if (!todos.value || todos.value.length === 0) {
+    return 'No tasks';
+  }
+  const completed = todos.value.filter(t => t.status === 'completed').length;
+  const inProgress = todos.value.filter(t => t.status === 'in_progress').length;
+  const pending = todos.value.filter(t => t.status === 'pending').length;
+
+  if (inProgress > 0) {
+    return `${completed}/${todos.value.length} completed · ${inProgress} in progress`;
+  }
+  if (pending > 0) {
+    return `${completed}/${todos.value.length} completed · ${pending} pending`;
+  }
+  return `${completed}/${todos.value.length} completed`;
 });
-
-// 获取复选框符号
-const getCheckboxSymbol = (status: string) => {
-  switch (status) {
-    case 'completed': return '✓';
-    case 'in_progress': return '◻';
-    default: return '◻';
-  }
-};
-
-// 获取状态标签
-const getStatusLabel = (status: string) => {
-  switch (status) {
-    case 'completed': return 'Completed';
-    case 'in_progress': return 'In Progress';
-    case 'pending': return 'Pending';
-    case 'stopped': return 'Stopped';
-    case 'failed': return 'Failed';
-    default: return status;
-  }
-};
 
 // 错误文本
 const errorText = computed(() => {
-  if (props.tool.result && typeof props.tool.result === 'object') {
-    const result = props.tool.result as Record<string, unknown>;
-    return (result.error as string) || JSON.stringify(props.tool.result, null, 2);
+  if (props.toolCall.body?.error) {
+    return String(props.toolCall.body.error);
   }
-  return String(props.tool.result);
+  if (props.toolCall.body?.message) {
+    return String(props.toolCall.body.message);
+  }
+  return '';
 });
+
+// Input 内容（JSON 格式）
+const inputContent = computed(() => {
+  if (props.toolCall.body?.input) {
+    return JSON.stringify(props.toolCall.body.input, null, 2);
+  }
+  return '';
+});
+
+const showInput = computed(() => {
+  return !!inputContent.value;
+});
+
+// Output 内容
+const outputContent = computed(() => {
+  if (props.toolCall.body?.output) {
+    if (typeof props.toolCall.body.output === 'string') {
+      return props.toolCall.body.output;
+    }
+    return JSON.stringify(props.toolCall.body.output, null, 2);
+  }
+  return '';
+});
+
+const showOutput = computed(() => {
+  return !!outputContent.value;
+});
+
+// 获取复选框符号
+const getCheckboxSymbol = (status: string): string => {
+  switch (status) {
+    case 'completed':
+      return '☑';  // 完成：带勾的框
+    case 'in_progress':
+      return '☐';  // 进行中：空框
+    case 'pending':
+    default:
+      return '☐';  // 待处理：空框
+  }
+};
+
+// 切换展开/收起
+function toggleExpand() {
+  isExpanded.value = !isExpanded.value;
+}
 </script>
 
 <style scoped>
 .task-tool-view {
-  padding: 0.5rem 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
 }
 
-.task-create,
-.task-update,
-.task-action {
-  background: #f9fafb;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-}
-
-.task-list {
-  background: #f9fafb;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-}
-
-.task-list-header {
+.tool-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.5rem;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.75rem;
+  background: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
+  transition: background 0.15s;
 }
 
-.list-title {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: #111827;
+.tool-header:hover {
+  background: #f3f4f6;
 }
 
-.list-count {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-
-.task-list-items {
+.tool-icon {
   display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.task-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.25rem 0;
-}
-
-.task-checkbox {
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #dbeafe;
   flex-shrink: 0;
-  width: 20px;
-  text-align: center;
-  font-size: 1rem;
-  font-weight: bold;
 }
 
-.task-checkbox.pending {
-  color: #9ca3af;
+.tool-icon .icon {
+  font-size: 1.25rem;
 }
 
-.task-checkbox.in_progress {
-  color: #3b82f6;
-}
-
-.task-checkbox.completed {
-  color: #22c55e;
-}
-
-.task-checkbox.stopped,
-.task-checkbox.failed {
-  color: #ef4444;
-}
-
-.task-info {
+.tool-info {
   flex: 1;
   min-width: 0;
 }
 
-.task-subject {
+.tool-title {
+  font-weight: 600;
   font-size: 0.875rem;
-  font-weight: 500;
   color: #111827;
 }
 
-.task-description {
+.tool-subtitle {
   font-size: 0.75rem;
   color: #6b7280;
   margin-top: 0.125rem;
 }
 
-.task-active-form {
+.tool-status {
+  display: flex;
+  align-items: center;
+}
+
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  color: #9ca3af;
+  transition: transform 0.2s;
+}
+
+.expand-btn span {
+  display: block;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.expand-btn span.rotated {
+  transform: rotate(90deg);
+}
+
+.tool-content {
+  padding: 0.75rem;
+}
+
+/* Todos 列表 */
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.todo-item:hover {
+  background: #f9fafb;
+}
+
+.todo-item.completed {
+  opacity: 0.7;
+}
+
+.todo-checkbox {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox-mark {
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: bold;
+}
+
+/* 状态颜色 */
+.todo-item.pending .checkbox-mark {
+  color: #9ca3af;  /* 灰色 */
+}
+
+.todo-item.in_progress .checkbox-mark {
+  color: #3b82f6;  /* 蓝色 */
+}
+
+.todo-item.completed .checkbox-mark {
+  color: #22c55e;  /* 绿色 */
+}
+
+.todo-content-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-text {
+  font-size: 0.875rem;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.todo-text.completed {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+.todo-active-form {
   font-size: 0.75rem;
   color: #3b82f6;
+  margin-top: 0.25rem;
   font-style: italic;
-  margin-top: 0.125rem;
 }
 
-.task-id {
-  font-size: 0.625rem;
+/* 空状态 */
+.todo-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
   color: #9ca3af;
-  font-family: 'Cascadia Code', 'Fira Code', monospace;
-  margin-top: 0.25rem;
 }
 
-.task-status-badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.625rem;
-  font-weight: 600;
-  margin-top: 0.25rem;
-  text-transform: uppercase;
+.empty-icon {
+  font-size: 1.25rem;
 }
 
-.task-status-badge.pending {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.task-status-badge.in_progress {
-  background: #dbeafe;
-  color: #2563eb;
-}
-
-.task-status-badge.completed {
-  background: #dcfce7;
-  color: #16a34a;
-}
-
-.task-status-badge.stopped,
-.task-status-badge.failed {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.task-action-label {
-  font-size: 0.75rem;
-  color: #6b7280;
+.empty-text {
+  font-size: 0.875rem;
   font-style: italic;
 }
 
 /* 错误信息 */
-.task-error {
+.todo-error {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem;
   margin-top: 0.5rem;
   background: #fef2f2;
   border-radius: 6px;
@@ -350,5 +459,63 @@ const errorText = computed(() => {
   font-size: 0.75rem;
   color: #dc2626;
   word-break: break-all;
+}
+
+/* Input/Output 区域 */
+.io-sections {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.io-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.io-header {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.io-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+}
+
+.input-label {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.output-label {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.io-content {
+  padding: 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.input-section .io-content {
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.output-section .io-content {
+  background: #f0fdf4;
+  color: #166534;
 }
 </style>

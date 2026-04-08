@@ -35,11 +35,6 @@
           <ToolCalls :toolCalls="[message.toolCall]" />
         </template>
 
-        <!-- 待办事项消息 -->
-        <template v-else-if="message.type === 'TODO' && message.todo">
-          <TodoItems :todos="[message.todo]" />
-        </template>
-
         <!-- 系统消息 -->
         <template v-else-if="message.type === 'SYSTEM'">
           <p class="text-sm text-gray-500 italic">{{ message.content }}</p>
@@ -80,7 +75,6 @@ import { useChatStore } from '@/stores/chat'
 import { marked } from 'marked'
 import PermissionDialog from './PermissionDialog.vue'
 import ToolCalls from './ToolCalls.vue'
-import TodoItems from './TodoItems.vue'
 import { logger } from '@/utils/debug-logger'
 
 const chatStore = useChatStore()
@@ -88,7 +82,6 @@ const messages = computed(() => chatStore.messages)
 const isThinking = computed(() => chatStore.isThinking)
 const pendingPermission = computed(() => chatStore.pendingPermission)
 const toolCalls = computed(() => chatStore.pendingToolCalls)
-const todos = computed(() => chatStore.todos)
 
 // 组件挂载日志
 onMounted(() => {
@@ -127,7 +120,6 @@ const getMessageBubbleClass = (type: string) => {
     case 'USER':
       return 'bg-primary-500 text-white'
     case 'TOOL':
-    case 'TODO':
       return 'bg-gray-50 text-gray-800 border border-gray-200'
     default:
       return 'bg-white text-gray-800'
@@ -140,7 +132,6 @@ const getMessageTimeClass = (type: string) => {
     case 'USER':
       return 'text-primary-100'
     case 'TOOL':
-    case 'TODO':
       return 'text-gray-500'
     default:
       return 'text-gray-400'

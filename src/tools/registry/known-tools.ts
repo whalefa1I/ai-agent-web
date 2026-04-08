@@ -221,38 +221,6 @@ export const knownTools: Record<string, ToolDefinition> = {
         }
     },
 
-    // ==================== TodoWrite 工具 ====================
-    'todo_write': {
-        title: 'Task List',
-        icon: ICONS.bulb,
-        noStatus: true,
-        minimal: (opts: { metadata: Metadata | null; tool: ToolCall; messages?: Message[] }) => {
-            const todos = opts.tool.args?.todos;
-            if (Array.isArray(todos) && todos.length > 0) {
-                return false;
-            }
-            return true;
-        },
-        extractDescription: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
-            const todos = opts.tool.args?.todos;
-            if (Array.isArray(todos)) {
-                const completed = todos.filter((t: any) => t.status === 'completed').length;
-                return `${completed}/${todos.length} tasks completed`;
-            }
-            return 'Manage task list';
-        },
-        extractSubtitle: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
-            const todos = opts.tool.args?.todos;
-            if (Array.isArray(todos) && todos.length > 0) {
-                const pending = todos.filter((t: any) => t.status !== 'completed');
-                if (pending.length > 0) {
-                    return `Next: ${pending[0].content || pending[0].description}`;
-                }
-            }
-            return null;
-        }
-    },
-
     // ==================== MCP Connect 工具 ====================
     'mcp_connect': {
         title: (opts: { metadata: Metadata | null; tool: ToolCall }) => {
