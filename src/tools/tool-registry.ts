@@ -99,13 +99,13 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'edit',
     minimal: false,
     extractTitle: (input) => {
-      const filePath = input.file_path as string
+      const filePath = (input.file_path || input.path || input.target_path) as string
       if (!filePath) return '写入文件'
-      const parts = filePath.split(/[\\/]/)
+      const parts = String(filePath).split(/[\\/]/)
       return parts[parts.length - 1] || '写入文件'
     },
     extractDescription: (input) => {
-      const filePath = input.file_path as string
+      const filePath = (input.file_path || input.path || input.target_path) as string
       return filePath ? `写入：${filePath}` : '写入文件'
     }
   },

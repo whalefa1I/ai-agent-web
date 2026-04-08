@@ -33,41 +33,67 @@ const props = defineProps<{
   toolCall: ToolCallArtifact
 }>()
 
-// 提取文件路径
+const toolName = computed(
+  () =>
+    String(props.toolCall.header?.subtype || props.toolCall.header?.toolName || '')
+      .trim()
+)
+
+const isFileWrite = computed(() => toolName.value === 'file_write')
+
+const input = computed(() => (props.toolCall.body?.input || {}) as Record<string, unknown>)
+
+// 提取文件路径（兼容 file_edit 的 file_path 与常见 file_write 的 path）
 const filePath = computed(() => {
-  return (props.toolCall.body?.input?.file_path as string) ||
-         props.toolCall.header?.inputSummary ||
-         ''
+  const i = input.value
+  const p =
+    (i.file_path as string) ||
+    (i.path as string) ||
+    (i.target_path as string) ||
+    ''
+  if (p) return p
+  return props.toolCall.header?.inputSummary ? String(props.toolCall.header.inputSummary) : ''
 })
 
 // 提取旧内容
 const oldText = computed(() => {
-  // 首先从 input 获取
-  const inputOld = props.toolCall.body?.input?.old_string as string | undefined
+  const i = input.value
+  if (isFileWrite.value) {
+    const explicit = i.old_string ?? i.old_content ?? i.previous_content
+    if (explicit !== undefined && explicit !== null && String(explicit).length > 0) {
+      return String(explicit)
+    }
+    return '（新建或覆盖写入，无原稿对比）'
+  }
+
+  const inputOld = i.old_string as string | undefined
   if (inputOld) return inputOld
 
-  // 如果没有，尝试从 output 中解析
   const output = props.toolCall.body?.output as string
-  if (output && output.includes('- ')) {
+  if (output && typeof output === 'string' && output.includes('- ')) {
     const match = output.match(/- (.+?)(?:\n|$)/)
     if (match && match[1]) return match[1]
   }
-  return '<原内容>'
+  return '（无原内容）'
 })
 
 // 提取新内容
 const newText = computed(() => {
-  // 首先从 input 获取
-  const inputNew = props.toolCall.body?.input?.new_string as string | undefined
-  if (inputNew) return inputNew
+  const i = input.value
+  if (isFileWrite.value) {
+    const c = i.content ?? i.new_string
+    if (c !== undefined && c !== null && String(c).length > 0) return String(c)
+  } else {
+    const inputNew = i.new_string as string | undefined
+    if (inputNew) return inputNew
+  }
 
-  // 如果没有，尝试从 output 中解析
   const output = props.toolCall.body?.output as string
-  if (output && output.includes('+ ')) {
+  if (output && typeof output === 'string' && output.includes('+ ')) {
     const match = output.match(/\+ (.+?)(?:\n|$)/)
     if (match && match[1]) return match[1]
   }
-  return '<新内容>'
+  return '（无新内容）'
 })
 </script>
 

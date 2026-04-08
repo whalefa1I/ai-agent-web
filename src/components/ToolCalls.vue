@@ -183,6 +183,15 @@ const formatOutput = (output: any) => {
   return JSON.stringify(output, null, 2)
 }
 
+function bodyErrorIndicatesFailure(err: unknown): boolean {
+  if (err == null || err === false) return false
+  if (typeof err === 'string') return err.trim().length > 0
+  if (typeof err === 'number') return err !== 0
+  if (Array.isArray(err)) return err.length > 0
+  if (typeof err === 'object') return Object.keys(err as Record<string, unknown>).length > 0
+  return Boolean(err)
+}
+
 // 获取工具状态（兼容多种格式）
 const getToolState = (toolCall: ToolCallArtifact): string => {
   // 1. 优先从 body.status 获取
@@ -193,8 +202,8 @@ const getToolState = (toolCall: ToolCallArtifact): string => {
     if (['completed', 'success'].includes(status)) return 'completed'
     if (['failed', 'error'].includes(status)) return 'failed'
   }
-  // 2. 从 body.error 判断是否失败
-  if (toolCall.body?.error) return 'failed'
+  // 2. 从 body.error 判断是否失败（避免空对象 {} 被当成 truthy 误显示 ❌）
+  if (bodyErrorIndicatesFailure(toolCall.body?.error)) return 'failed'
   // 3. 从 body.output 判断是否完成
   if (toolCall.body?.output) return 'completed'
   // 4. 默认当作完成（静态 artifact）
