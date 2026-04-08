@@ -120,7 +120,7 @@ export function mergeTaskToolCallsToRows(calls: ToolCallArtifact[]): AiAgentTask
     extracted.forEach((r, i) => upsertRow(r, `__ex_${ci}_${i}`))
   }
 
-  return order.map(id => byId.get(id)).filter((r): r is AiAgentTaskRow => r != null)
+  return sortTaskRows(order.map(id => byId.get(id)).filter((r): r is AiAgentTaskRow => r != null))
 }
 
 export type ChatDisplayRow =
@@ -210,19 +210,21 @@ function mergeOneCallRows(current: AiAgentTaskRow[], call: ToolCallArtifact, ci:
   }
 
   if (name === 'TaskList' && meta && Array.isArray(meta.tasks)) {
-    return (meta.tasks as Record<string, unknown>[]).map(t => mapTaskRecord((t || {}) as Record<string, unknown>))
+    return sortTaskRows(
+      (meta.tasks as Record<string, unknown>[]).map(t => mapTaskRecord((t || {}) as Record<string, unknown>))
+    )
   }
   if (name === 'TaskCreate' && meta?.task && typeof meta.task === 'object') {
     upsert(mapTaskRecord(meta.task as Record<string, unknown>), `__create_${ci}_${order.length}`)
-    return order.map(id => byId.get(id)).filter((r): r is AiAgentTaskRow => r != null)
+    return sortTaskRows(order.map(id => byId.get(id)).filter((r): r is AiAgentTaskRow => r != null))
   }
   if (meta?.task && typeof meta.task === 'object') {
     upsert(mapTaskRecord(meta.task as Record<string, unknown>), `__task_${ci}_${order.length}`)
-    return order.map(id => byId.get(id)).filter((r): r is AiAgentTaskRow => r != null)
+    return sortTaskRows(order.map(id => byId.get(id)).filter((r): r is AiAgentTaskRow => r != null))
   }
   const extracted = extractTaskRowsFromAiAgentToolBody(body)
   extracted.forEach((r, i) => upsert(r, `__ex_${ci}_${i}`))
-  return order.map(id => byId.get(id)).filter((r): r is AiAgentTaskRow => r != null)
+  return sortTaskRows(order.map(id => byId.get(id)).filter((r): r is AiAgentTaskRow => r != null))
 }
 
 export function buildTaskProgressSnapshots(calls: ToolCallArtifact[]): TaskProgressSnapshot[] {
@@ -322,14 +324,27 @@ function isRedundantAdjacentTaskSnapshot(prev: AiAgentTaskRow[], next: AiAgentTa
     return true
   }
 
-  // 无状态变化：视为同快照去重，要求 description / activeForm 也一致
-  for (const id of pm.keys()) {
-    const a = pm.get(id)!
-    const b = nm.get(id)!
-    if ((a.description || '') !== (b.description || '')) return false
-    if ((a.activeForm || '') !== (b.activeForm || '')) return false
+  // 无状态变化：也视为同快照（允许 description/activeForm 更新，不再生成冗余进度卡）
+  return !anyStatusChange
+}
+
+function sortTaskRows(rows: AiAgentTaskRow[]): AiAgentTaskRow[] {
+  const toNum = (x: unknown): number | null => {
+    const s = String(x ?? '').trim()
+    if (!/^\d+$/.test(s)) return null
+    return Number(s)
   }
-  return true
+  return [...rows].sort((a, b) => {
+    const an = toNum(a.id)
+    const bn = toNum(b.id)
+    if (an != null && bn != null) return an - bn
+    if (an != null) return -1
+    if (bn != null) return 1
+    const ai = String(a.id ?? '')
+    const bi = String(b.id ?? '')
+    if (ai !== bi) return ai.localeCompare(bi)
+    return String(a.content ?? '').localeCompare(String(b.content ?? ''))
+  })
 }
 
 export function buildChatDisplayRows(messages: ChatMessageDTO[]): ChatDisplayRow[] {
