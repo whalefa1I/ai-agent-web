@@ -120,7 +120,7 @@
             <span class="wait-dot"></span>
             <span class="wait-dot" style="animation-delay: 180ms"></span>
             <span class="wait-dot" style="animation-delay: 360ms"></span>
-            <span class="thinking-verb">{{ waitDisplayText }}</span>
+            <span class="thinking-verb">{{ getWaitMessageText(row.message.id) }}</span>
           </div>
           <div
             v-else-if="row.message.subtype !== 'assistant-loop-state-message'"
@@ -164,20 +164,6 @@
           {{ formatTime(row.message.timestamp) }}
         </div>
         </template>
-      </div>
-    </div>
-
-    <!-- 全局思考中状态（无后端 thinking 文本时的兜底可视化） -->
-    <div v-if="isThinking" class="message-row flex justify-start">
-      <div class="message-bubble thinking-global rounded-xl border border-sky-200/70 bg-gradient-to-r from-sky-50 via-cyan-50 to-indigo-50 px-3 py-2">
-        <div class="flex items-center space-x-2">
-          <div class="flex space-x-1">
-            <div class="w-2 h-2 bg-sky-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
-            <div class="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
-            <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
-          </div>
-          <span class="text-sm text-sky-700 thinking-verb">{{ waitDisplayText }}</span>
-        </div>
       </div>
     </div>
 
@@ -250,9 +236,39 @@ const SPINNER_VERBS = [
 ]
 const spinnerVerb = ref('思考中')
 const lastSpinnerKey = ref<string>('')
-const waitDisplayText = computed(() => {
-  if (waitPhase.value === 'tool_done') return '已完成，继续处理中...'
-  return `${spinnerVerb.value}...`
+const waitVerbByMessageId = ref<Record<string, string>>({})
+const waitMessageDoneById = computed<Record<string, boolean>>(() => {
+  const result: Record<string, boolean> = {}
+  const rows = displayRows.value
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    if (row.kind !== 'message') continue
+    const message = row.message
+    if (message.type !== 'ASSISTANT' || message.subtype !== 'assistant-wait-message') continue
+    const currentTurn = String(message.metadata?.userTurnId || '')
+    let done = false
+    for (let j = i + 1; j < rows.length; j++) {
+      const next = rows[j]
+      if (next.kind !== 'message') continue
+      const nextMsg = next.message
+      if (nextMsg.type === 'USER') break
+      const nextTurn = String(nextMsg.metadata?.userTurnId || '')
+      if (currentTurn && nextTurn && currentTurn !== nextTurn) continue
+      if (
+        nextMsg.type === 'TOOL' ||
+        nextMsg.type === 'TODO' ||
+        nextMsg.type === 'SYSTEM' ||
+        (nextMsg.type === 'ASSISTANT' &&
+          nextMsg.subtype !== 'assistant-wait-message' &&
+          Boolean(String(nextMsg.content || '').trim()))
+      ) {
+        done = true
+        break
+      }
+    }
+    result[message.id] = done
+  }
+  return result
 })
 
 function randomSpinnerVerb(): string {
@@ -276,6 +292,29 @@ watch(isThinking, (now, prev) => {
     lastSpinnerKey.value = ''
   }
 })
+
+watch(
+  displayRows,
+  (rows) => {
+    for (const row of rows) {
+      if (row.kind !== 'message') continue
+      const message = row.message
+      if (message.type !== 'ASSISTANT' || message.subtype !== 'assistant-wait-message') continue
+      if (!waitVerbByMessageId.value[message.id]) {
+        waitVerbByMessageId.value[message.id] = randomSpinnerVerb()
+      }
+    }
+  },
+  { deep: true, immediate: true }
+)
+
+function getWaitMessageText(messageId: string): string {
+  if (waitMessageDoneById.value[messageId]) {
+    return '已完成'
+  }
+  const verb = waitVerbByMessageId.value[messageId] || '处理中'
+  return `${verb}...`
+}
 
 // 按「收到一条完整输出」切换等待词：
 // 用户发送后开始等待会固定一个词；当收到新的 TOOL/ASSISTANT/SYSTEM/TODO 完整消息后，
