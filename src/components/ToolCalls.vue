@@ -192,21 +192,45 @@ function bodyErrorIndicatesFailure(err: unknown): boolean {
   return Boolean(err)
 }
 
+/** 后端 LocalToolResult 常见形态：成功时结果在 metadata，未必有顶层 output；需在判 error 之前识别，避免误显示 ❌ */
+function toolBodyIndicatesSuccess(body: Record<string, unknown> | undefined): boolean {
+  if (!body) return false
+  const out = body.output
+  if (out != null && out !== '') {
+    if (typeof out === 'object' && !Array.isArray(out) && Object.keys(out as object).length === 0) {
+      /* empty object — 不当作成功依据 */
+    } else {
+      return true
+    }
+  }
+  const m = body.metadata
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return false
+  const meta = m as Record<string, unknown>
+  if (meta.content != null && String(meta.content).length > 0) return true
+  if (typeof meta.lines === 'number') return true
+  if (meta.bytesWritten != null || meta.written === true) return true
+  if (meta.size != null && meta.path != null) return true
+  return false
+}
+
 // 获取工具状态（兼容多种格式）
 const getToolState = (toolCall: ToolCallArtifact): string => {
+  const body = toolCall.body as Record<string, unknown> | undefined
   // 1. 优先从 body.status 获取
-  if (toolCall.body?.status) {
-    const status = toolCall.body.status
+  if (body?.status) {
+    const status = body.status
     if (['started', 'running', 'executing'].includes(status)) return 'started'
     if (['in_progress', 'in-progress'].includes(status)) return 'in_progress'
     if (['completed', 'success'].includes(status)) return 'completed'
     if (['failed', 'error'].includes(status)) return 'failed'
   }
-  // 2. 从 body.error 判断是否失败（避免空对象 {} 被当成 truthy 误显示 ❌）
-  if (bodyErrorIndicatesFailure(toolCall.body?.error)) return 'failed'
-  // 3. 从 body.output 判断是否完成
-  if (toolCall.body?.output) return 'completed'
-  // 4. 默认当作完成（静态 artifact）
+  // 2. 已有明确成功载荷时，不要被残留 error 字段盖住（常见于 metadata 与 error 并存）
+  if (toolBodyIndicatesSuccess(body)) return 'completed'
+  // 3. 从 body.error 判断是否失败（避免空对象 {} 被当成 truthy 误显示 ❌）
+  if (bodyErrorIndicatesFailure(body?.error)) return 'failed'
+  // 4. 从 body.output 判断是否完成
+  if (body?.output) return 'completed'
+  // 5. 默认当作完成（静态 artifact）
   return 'completed'
 }
 

@@ -43,14 +43,9 @@ const isFileWrite = computed(() => toolName.value === 'file_write')
 
 const input = computed(() => (props.toolCall.body?.input || {}) as Record<string, unknown>)
 
-// 提取文件路径（兼容 file_edit 的 file_path 与常见 file_write 的 path）
+// 与后端 LocalFileReadTool / LocalFileWriteTool / LocalFileEditTool 一致：仅 file_path
 const filePath = computed(() => {
-  const i = input.value
-  const p =
-    (i.file_path as string) ||
-    (i.path as string) ||
-    (i.target_path as string) ||
-    ''
+  const p = (input.value.file_path as string) || ''
   if (p) return p
   return props.toolCall.header?.inputSummary ? String(props.toolCall.header.inputSummary) : ''
 })
@@ -81,7 +76,7 @@ const oldText = computed(() => {
 const newText = computed(() => {
   const i = input.value
   if (isFileWrite.value) {
-    const c = i.content ?? i.new_string
+    const c = i.content
     if (c !== undefined && c !== null && String(c).length > 0) return String(c)
   } else {
     const inputNew = i.new_string as string | undefined

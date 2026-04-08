@@ -27,12 +27,10 @@ const props = defineProps<{
   toolCall: ToolCallArtifact
 }>()
 
-// 提取文件路径
+// 与后端 LocalFileReadTool 一致：仅展示 file_path
 const filePath = computed(() => {
-  return (props.toolCall.body?.input?.file_path as string) ||
-         (props.toolCall.body?.input?.path as string) ||
-         props.toolCall.header?.inputSummary ||
-         ''
+  const i = props.toolCall.body?.input as Record<string, unknown> | undefined
+  return (i?.file_path as string) || props.toolCall.header?.inputSummary || ''
 })
 
 // 提取行信息
@@ -48,21 +46,43 @@ const lineInfo = computed(() => {
   return ''
 })
 
+function formatBodyError(err: unknown): string {
+  if (err == null) return ''
+  if (typeof err === 'string') return err
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return String(err)
+  }
+}
+
 // 提取错误信息
 const errorMessage = computed(() => {
-  return props.toolCall.body?.error as string | null
+  const err = props.toolCall.body?.error
+  if (!bodyErrorIndicatesFailure(err)) return ''
+  return formatBodyError(err)
 })
+
+function bodyErrorIndicatesFailure(err: unknown): boolean {
+  if (err == null || err === false) return false
+  if (typeof err === 'string') return err.trim().length > 0
+  if (typeof err === 'number') return err !== 0
+  if (Array.isArray(err)) return err.length > 0
+  if (typeof err === 'object') return Object.keys(err as Record<string, unknown>).length > 0
+  return Boolean(err)
+}
 
 // 提取内容
 const content = computed(() => {
-  // 尝试从 output 中获取内容
-  const output = props.toolCall.body?.output as any
+  const body = props.toolCall.body as Record<string, unknown> | undefined
+  const output = body?.output as any
   if (output) {
     if (typeof output === 'string') return output
-    // 如果是对象，尝试获取 content 字段
     if (output.content) return output.content
     return JSON.stringify(output, null, 2)
   }
+  const meta = body?.metadata as Record<string, unknown> | undefined
+  if (meta?.content != null) return String(meta.content)
   return '<文件内容>'
 })
 </script>

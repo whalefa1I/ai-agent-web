@@ -68,7 +68,7 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     }
   },
 
-  // 文件读取工具
+  // 文件读取工具（与 ai-agent-server LocalFileReadTool：仅 file_path）
   file_read: {
     name: 'file_read',
     displayName: '读取文件',
@@ -77,14 +77,14 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     extractTitle: (input) => {
       const filePath = input.file_path as string
       if (!filePath) return '读取文件'
-      // 提取文件名
-      const parts = filePath.split(/[\\/]/)
+      const parts = String(filePath).split(/[\\/]/)
       return parts[parts.length - 1] || '读取文件'
     },
     extractDescription: (input) => {
       const filePath = input.file_path as string
       const offset = input.offset as number
       const limit = input.limit as number
+      if (!filePath) return '读取文件'
       let desc = filePath
       if (offset !== undefined) desc += `:${offset}`
       if (limit !== undefined) desc += `+${limit}`
@@ -92,20 +92,20 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     }
   },
 
-  // 文件写入工具
+  // 文件写入工具（与 LocalFileWriteTool：file_path + content）
   file_write: {
     name: 'file_write',
     displayName: '写入文件',
     icon: 'edit',
     minimal: false,
     extractTitle: (input) => {
-      const filePath = (input.file_path || input.path || input.target_path) as string
+      const filePath = input.file_path as string
       if (!filePath) return '写入文件'
       const parts = String(filePath).split(/[\\/]/)
       return parts[parts.length - 1] || '写入文件'
     },
     extractDescription: (input) => {
-      const filePath = (input.file_path || input.path || input.target_path) as string
+      const filePath = input.file_path as string
       return filePath ? `写入：${filePath}` : '写入文件'
     }
   },
