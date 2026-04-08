@@ -50,6 +50,7 @@
               `turn=${String(row.message.metadata.turnId || '')} · ` +
               `compact=${String(row.message.metadata.compactId || '')} · ` +
               `${String(row.message.metadata.preCompactCount || '?')}→${String(row.message.metadata.postCompactCount || '?')} · ` +
+              `userTurn=${String(row.message.metadata.userTurnId || '?')} · ` +
               `phase=${String(row.message.metadata.phase || '?')} · ` +
               `parent=${String(row.message.metadata.parentId || '?')}`
             }}
@@ -62,6 +63,7 @@
               `trimmed=${String(row.message.metadata.trimmedResponses || '?')} · ` +
               `chars=${String(row.message.metadata.trimmedChars || '?')} · ` +
               `limit=${String(row.message.metadata.maxCharsPerResponse || '?')} · ` +
+              `userTurn=${String(row.message.metadata.userTurnId || '?')} · ` +
               `phase=${String(row.message.metadata.phase || '?')} · ` +
               `parent=${String(row.message.metadata.parentId || '?')}`
             }}
@@ -74,6 +76,7 @@
               `snipped=${String(row.message.metadata.snippedMessages || '?')} · ` +
               `chars=${String(row.message.metadata.beforeChars || '?')}→${String(row.message.metadata.afterChars || '?')} · ` +
               `budget=${String(row.message.metadata.snipBudgetChars || '?')} · ` +
+              `userTurn=${String(row.message.metadata.userTurnId || '?')} · ` +
               `phase=${String(row.message.metadata.phase || '?')} · ` +
               `parent=${String(row.message.metadata.parentId || '?')}`
             }}
@@ -85,6 +88,7 @@
             {{
               `chars=${String(row.message.metadata.beforeChars || '?')}→${String(row.message.metadata.afterChars || '?')} · ` +
               `count=${String(row.message.metadata.beforeCount || '?')}→${String(row.message.metadata.afterCount || '?')} · ` +
+              `userTurn=${String(row.message.metadata.userTurnId || '?')} · ` +
               `phase=${String(row.message.metadata.phase || '?')} · ` +
               `parent=${String(row.message.metadata.parentId || '?')}`
             }}
@@ -96,8 +100,15 @@
             {{
               `turn=${String(row.message.metadata.turnId || '')} · ` +
               `batch=${String(row.message.metadata.toolBatchId || '')} · ` +
-              `tools=${String(row.message.metadata.toolCallCount || '?')}`
+              `tools=${String(row.message.metadata.toolCallCount || '?')} · ` +
+              `userTurn=${String(row.message.metadata.userTurnId || '?')}`
             }}
+          </div>
+          <div
+            v-else-if="row.message.subtype === 'assistant-message' && row.message.metadata && row.message.metadata.userTurnId"
+            class="mb-1 text-[11px] text-slate-500"
+          >
+            {{ `userTurn=${String(row.message.metadata.userTurnId)}` }}
           </div>
           <div class="markdown-body" v-html="renderMarkdown(row.message.content)"></div>
         </template>
