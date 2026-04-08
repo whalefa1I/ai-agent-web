@@ -7,7 +7,6 @@ import TodoView from './TodoView.vue'
 import BashView from './BashView.vue'
 import EditView from './EditView.vue'
 import FileReadView from './FileReadView.vue'
-import TaskView from './TaskView.vue'
 import AskUserQuestionView from './AskUserQuestionView.vue'
 import ExitPlanModeView from './ExitPlanModeView.vue'
 import LSView from './LSView.vue'
@@ -22,13 +21,7 @@ export const toolViews: Record<string, Component> = {
   file_edit: EditView,
   file_write: EditView,
   file_read: FileReadView,
-  // Task 工具集
-  TaskCreate: TaskView,
-  TaskList: TaskView,
-  TaskGet: TaskView,
-  TaskUpdate: TaskView,
-  TaskStop: TaskView,
-  TaskOutput: TaskView,
+  // Task* 由 components/ToolCalls.vue → happy-protocol/TaskToolView 统一渲染
   // AskUserQuestion 工具
   AskUserQuestion: AskUserQuestionView,
   // ExitPlanMode 工具

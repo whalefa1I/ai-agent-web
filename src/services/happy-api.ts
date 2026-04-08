@@ -566,11 +566,16 @@ export class HappyApiService {
    */
   async getPendingPermissions(): Promise<PermissionArtifact[]> {
     try {
-      const res = await fetch(`${this.serverUrl}/api/permissions/pending`)
+      const res = await fetch(`${this.serverUrl}/api/permissions/pending`, {
+        headers: {
+          ...(await this.getApiKeyHeader())
+        }
+      })
       if (!res.ok) {
         return []
       }
-      const requests = await res.json()
+      const raw = await res.json()
+      const requests = Array.isArray(raw) ? raw : []
       // 将后端 PermissionRequest 转换为前端 PermissionArtifact 格式
       return requests.map((req: any) => ({
         id: req.id,

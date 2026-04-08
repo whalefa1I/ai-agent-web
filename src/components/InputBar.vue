@@ -1,6 +1,6 @@
 <template>
-  <div class="input-bar border-t bg-white p-4">
-    <div class="max-w-4xl mx-auto">
+  <div class="input-bar border-t border-[#eaeaea] bg-white p-4">
+    <div class="mx-auto w-full max-w-[800px]">
       <!-- 输入框 -->
       <div class="flex items-end space-x-3 relative">
         <div class="flex-1 relative">
@@ -8,7 +8,7 @@
             v-model="input"
             :disabled="disabled || isThinking"
             placeholder="输入消息... (输入 / 显示命令)"
-            class="w-full resize-none rounded-2xl border border-gray-300 px-4 py-3 pr-12 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-all"
+            class="w-full resize-none rounded-[10px] border border-transparent bg-[#F5F5F5] px-4 py-3 pr-12 text-[15px] text-black outline-none transition-all placeholder:text-[#999999] focus:border-[#eaeaea] focus:bg-white focus:ring-1 focus:ring-[#eaeaea] disabled:cursor-not-allowed disabled:bg-[#f0f0f0]"
             rows="1"
             @keydown.enter.exact.prevent="sendMessage"
             @keydown.tab.prevent="handleTab"
@@ -61,7 +61,7 @@
         <button
           @click="sendMessage"
           :disabled="!input.trim() || disabled || isThinking"
-          class="send-btn px-4 py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center space-x-2"
+          class="send-btn flex items-center space-x-2 rounded-[10px] bg-black px-4 py-3 font-medium text-white transition-all duration-200 hover:bg-[#1a1a1a] disabled:cursor-not-allowed disabled:bg-[#C0C0C0] disabled:opacity-100"
         >
           <span>发送</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

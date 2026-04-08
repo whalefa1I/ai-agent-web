@@ -40,7 +40,7 @@
             <h4 class="font-medium text-sm text-gray-600">请选择</h4>
             <div class="grid gap-2">
               <button
-                v-for="option in request.body.permissionOptions"
+                v-for="option in permissionOptions"
                 :key="option.value"
                 @click="handleRespond(option.value)"
                 :class="[
@@ -69,6 +69,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { PermissionArtifact } from '@/types/happy-protocol'
 import { useChatStore } from '@/stores/chat'
 
@@ -79,6 +80,10 @@ const props = defineProps<{
 
 const chatStore = useChatStore()
 
+const permissionOptions = computed(
+  () => props.request.body?.permissionOptions ?? []
+)
+
 // 处理响应
 function handleRespond(choice: string) {
   chatStore.respondPermission(props.request.id, choice as any)
@@ -87,8 +92,8 @@ function handleRespond(choice: string) {
 // 按钮样式映射
 const getButtonStyle = (style: string) => {
   const styles: Record<string, string> = {
-    default: 'bg-gray-100 hover:bg-gray-200 text-gray-800',
-    primary: 'bg-primary-500 hover:bg-primary-600 text-white',
+    default: 'bg-[#F5F5F5] hover:bg-[#eaeaea] text-[#18171C]',
+    primary: 'bg-black hover:bg-[#1a1a1a] text-white',
     warning: 'bg-yellow-500 hover:bg-yellow-600 text-white',
     danger: 'bg-red-500 hover:bg-red-600 text-white'
   }

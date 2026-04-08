@@ -79,7 +79,7 @@ const filterError = ref(true);
 let pollInterval: number | null = null;
 
 const filteredLogs = computed(() => {
-  return logs.filter(log => {
+  return logs.value.filter(log => {
     if (!showAllLogs.value) {
       return log.level === 'error' || log.level === 'warn';
     }

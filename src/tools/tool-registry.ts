@@ -369,11 +369,11 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'task',
     minimal: true,
     extractTitle: (input) => {
-      const taskId = input.task_id as string
+      const taskId = (input.taskId as string) || (input.task_id as string)
       return taskId || '查看任务'
     },
     extractDescription: (input) => {
-      const taskId = input.task_id as string
+      const taskId = (input.taskId as string) || (input.task_id as string)
       return `查看任务详情：${taskId}`
     }
   },
@@ -384,12 +384,12 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'task',
     minimal: false,
     extractTitle: (input) => {
-      const taskId = input.task_id as string
+      const taskId = (input.taskId as string) || (input.task_id as string)
       const status = input.status as string
       return status ? `${status} 任务` : `更新：${taskId?.substring(0, 12) || ''}`
     },
     extractDescription: (input) => {
-      const taskId = input.task_id as string
+      const taskId = (input.taskId as string) || (input.task_id as string)
       const status = input.status as string
       const subject = input.subject as string
       const updates: string[] = []
@@ -405,11 +405,11 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'task',
     minimal: true,
     extractTitle: (input) => {
-      const taskId = input.task_id as string
+      const taskId = (input.taskId as string) || (input.task_id as string)
       return taskId || '停止任务'
     },
     extractDescription: (input) => {
-      const taskId = input.task_id as string
+      const taskId = (input.taskId as string) || (input.task_id as string)
       return `停止任务：${taskId}`
     }
   },
@@ -420,11 +420,11 @@ export const toolRegistry: Record<string, ToolMetadata> = {
     icon: 'task',
     minimal: true,
     extractTitle: (input) => {
-      const taskId = input.task_id as string
+      const taskId = (input.taskId as string) || (input.task_id as string)
       return taskId || '任务输出'
     },
     extractDescription: (input) => {
-      const taskId = input.task_id as string
+      const taskId = (input.taskId as string) || (input.task_id as string)
       return `获取任务输出：${taskId}`
     }
   },

@@ -78,6 +78,17 @@ export const useChatStore = defineStore('chat', () => {
   /**
    * 处理所有 artifacts - 将工具调用和待办事项嵌入到聊天流中
    */
+  /**
+   * 用于时间线排序：助手 artifact 在回合一开始就创建（createdAt 很早），
+   * 但流式内容与最终定稿会不断刷新 updatedAt。若只用 createdAt，
+   * 最终回复会排在工具调用之前（用户看到“答案在最上面”）。
+   */
+  function timelineMs(a: HappyArtifact): number {
+    const c = typeof a.createdAt === 'number' ? a.createdAt : Number(a.createdAt)
+    const u = typeof a.updatedAt === 'number' ? a.updatedAt : Number(a.updatedAt)
+    return Math.max(Number.isFinite(c) ? c : 0, Number.isFinite(u) ? u : 0)
+  }
+
   function processArtifacts(artifacts: HappyArtifact[]) {
     // 提取所有类型的 artifacts
     const userMessages = apiService.value.extractUserMessages(artifacts)
@@ -95,7 +106,7 @@ export const useChatStore = defineStore('chat', () => {
         id: m.id,
         type: 'USER' as const,
         content: m.body.content,
-        timestamp: new Date(m.createdAt).toISOString()
+        timestamp: new Date(timelineMs(m)).toISOString()
       })
     })
 
@@ -105,7 +116,7 @@ export const useChatStore = defineStore('chat', () => {
         id: tc.id,
         type: 'TOOL' as const,
         content: '',  // 工具调用的内容在 toolCall 字段中
-        timestamp: new Date(tc.createdAt).toISOString(),
+        timestamp: new Date(timelineMs(tc)).toISOString(),
         toolCall: tc
       })
     })
@@ -116,7 +127,7 @@ export const useChatStore = defineStore('chat', () => {
         id: todo.id,
         type: 'TODO' as const,
         content: '',  // 待办事项的内容在 todo 字段中
-        timestamp: new Date(todo.createdAt).toISOString(),
+        timestamp: new Date(timelineMs(todo)).toISOString(),
         todo: todo
       })
     })
@@ -127,31 +138,26 @@ export const useChatStore = defineStore('chat', () => {
         id: m.id,
         type: 'ASSISTANT' as const,
         content: m.body.content,
-        timestamp: new Date(m.createdAt).toISOString(),
+        timestamp: new Date(timelineMs(m)).toISOString(),
         inputTokens: m.body.inputTokens,
         outputTokens: m.body.outputTokens
       })
     })
 
-    // 按时间排序，但同一秒内的消息按类型排序：用户 > 工具 > 待办 > 助手
+    // 按时间线排序：以 max(createdAt, updatedAt) 为主（流式助手占位需用 updatedAt）。
+    // 仅在时间戳完全相同（同毫秒）时用类型作 tie-break：USER → TOOL → TODO → THINKING → ASSISTANT
+    const typePriority: Record<string, number> = {
+      USER: 0,
+      TOOL: 1,
+      TODO: 2,
+      THINKING: 3,
+      ASSISTANT: 4
+    }
     allMessages.sort((a, b) => {
       const timeA = new Date(a.timestamp).getTime()
       const timeB = new Date(b.timestamp).getTime()
-
-      // 如果时间差在 10 秒内，按对话逻辑排序
-      if (Math.abs(timeA - timeB) < 10000) {
-        const typePriority: Record<string, number> = {
-          'USER': 0,
-          'TOOL': 1,
-          'TODO': 2,
-          'THINKING': 3,
-          'ASSISTANT': 4
-        }
-        return typePriority[a.type] - typePriority[b.type]
-      }
-
-      // 时间差超过 10 秒，按时间排序
-      return timeA - timeB
+      if (timeA !== timeB) return timeA - timeB
+      return (typePriority[a.type] ?? 9) - (typePriority[b.type] ?? 9)
     })
 
     messages.value = allMessages
@@ -232,9 +238,10 @@ export const useChatStore = defineStore('chat', () => {
    */
   async function fetchPendingPermissions() {
     try {
-      const permissions = await apiService.value.getPendingPermissions()
-      if (permissions.length > 0 && !permissions[0].body.response) {
-        pendingPermission.value = permissions[0]
+      const permissions = (await apiService.value.getPendingPermissions()) ?? []
+      const first = permissions[0]
+      if (permissions.length > 0 && first?.body && !first.body.response) {
+        pendingPermission.value = first
       } else if (permissions.length === 0) {
         // 没有待确认的权限请求，清除对话框
         pendingPermission.value = null

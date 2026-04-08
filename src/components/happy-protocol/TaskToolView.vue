@@ -6,11 +6,12 @@
         <span class="icon">📋</span>
       </div>
       <div class="tool-info">
-        <div class="tool-title">Task List</div>
+        <div class="tool-title">{{ panelTitle }}</div>
         <div class="tool-subtitle">{{ subtitle }}</div>
       </div>
       <div class="tool-status">
-        <button class="expand-btn">
+        <span class="run-status" :title="runStatusHint">{{ runStatusIcon }}</span>
+        <button type="button" class="expand-btn" aria-label="展开或收起">
           <span :class="{ 'rotated': isExpanded }">›</span>
         </button>
       </div>
@@ -24,7 +25,7 @@
           v-for="(todo, index) in todos"
           :key="todo.id || index"
           class="todo-item"
-          :class="todo.status"
+          :class="['status-' + todo.status, todo.status]"
         >
           <div class="todo-checkbox">
             <span class="checkbox-mark">
@@ -35,6 +36,9 @@
             <div class="todo-text" :class="{ 'completed': todo.status === 'completed' }">
               {{ todo.content }}
             </div>
+            <div v-if="todo.description" class="todo-description">
+              {{ todo.description }}
+            </div>
             <div v-if="todo.activeForm && todo.status === 'in_progress'" class="todo-active-form">
               {{ todo.activeForm }}
             </div>
@@ -42,10 +46,10 @@
         </div>
       </div>
 
-      <!-- 空状态 -->
-      <div v-else-if="!todos || todos.length === 0" class="todo-empty">
+      <!-- 空状态（有错误时不显示「No tasks」，避免与红色错误重复） -->
+      <div v-else-if="(!todos || todos.length === 0) && !errorText" class="todo-empty">
         <span class="empty-icon">📋</span>
-        <span class="empty-text">No tasks</span>
+        <span class="empty-text">暂无任务数据（metadata 中无 tasks/task）</span>
       </div>
 
       <!-- 错误信息 -->
@@ -77,206 +81,121 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
-import type { ToolCallArtifact } from '@/types/happy-protocol';
-import { logger } from '@/utils/debug-logger';
+import { computed, ref } from 'vue'
+import type { ToolCallArtifact } from '@/types/happy-protocol'
+import { getToolMetadata } from '@/tools/tool-registry'
+import { extractTaskRowsFromAiAgentToolBody, type AiAgentTaskRow } from '@/utils/ai-agent-tool-body'
 
-interface TodoItem {
-  content: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  activeForm?: string;
-  id?: string;
-}
+const props = defineProps<{
+  toolCall: ToolCallArtifact
+}>()
 
-interface Props {
-  toolCall: ToolCallArtifact;
-}
+const isExpanded = ref(true)
 
-const props = defineProps<Props>();
+/** 与外层 ToolCalls 卡片状态对齐（Task* 仅内层展示时仍可见成功/失败） */
+const runStatusIcon = computed(() => {
+  const st = (props.toolCall.body as { status?: string } | undefined)?.status
+  if (st === 'failed') return '❌'
+  if (st === 'completed') return '✅'
+  if (st === 'in_progress' || st === 'running') return '🔄'
+  if (st === 'started') return '⏳'
+  return '🔧'
+})
 
-const isExpanded = ref(true);
+const runStatusHint = computed(() => {
+  const st = (props.toolCall.body as { status?: string } | undefined)?.status
+  return st ? `工具状态: ${st}` : '工具调用'
+})
 
-// 组件挂载日志
-onMounted(() => {
-  logger.logComponentMount('TaskToolView', {
-    toolCallId: props.toolCall?.id,
-    toolName: props.toolCall?.header?.subtype || props.toolCall?.header?.toolName
-  });
-});
+const toolKey = computed(() => {
+  const h = props.toolCall.header as Record<string, unknown> | undefined
+  return ((h?.subtype as string) || (h?.toolName as string) || '').trim()
+})
 
-// 从 toolCall 中提取 todos
-const todos = computed(() => {
-  const toolName = props.toolCall?.header?.subtype || props.toolCall?.header?.toolName || 'unknown';
-  logger.debug('TaskToolView', `Extracting todos for ${toolName}`, {
-    hasMetadata: !!props.toolCall.body?.metadata,
-    hasInput: !!props.toolCall.body?.input,
-    hasOutput: !!props.toolCall.body?.output
-  });
+/** 使用注册表中文名，避免与外层卡片重复堆叠英文 subtype */
+const panelTitle = computed(() => {
+  const key = toolKey.value
+  if (!key) return 'Task'
+  const meta = getToolMetadata(key)
+  return meta.displayName || key
+})
 
-  // 1. 首先尝试从 result.metadata.todos 获取（Task* 工具）
-  if (props.toolCall.body?.metadata) {
-    const metadata = props.toolCall.body.metadata as Record<string, unknown>;
-    logger.debug('TaskToolView', 'Checking metadata', { metadataKeys: Object.keys(metadata || {}) });
-
-    if (metadata.todos && Array.isArray(metadata.todos)) {
-      logger.info('TaskToolView', 'Found todos in metadata.todos', { count: metadata.todos.length });
-      return metadata.todos.map((todo: any) => ({
-        content: todo.content || todo.subject || 'Unnamed',
-        status: (todo.status || 'pending') as 'pending' | 'in_progress' | 'completed',
-        activeForm: todo.activeForm,
-        id: todo.id
-      }));
-    }
-    // 2. 尝试从 metadata.task 获取单个任务
-    if (metadata.task) {
-      const task = metadata.task as Record<string, unknown>;
-      logger.info('TaskToolView', 'Found single task in metadata.task', {
-        subject: task.subject,
-        status: task.status
-      });
-      return [{
-        content: (task.subject as string) || (task.content as string) || 'Unnamed Task',
-        status: (task.status as 'pending' | 'in_progress' | 'completed') || 'pending',
-        activeForm: task.activeForm as string,
-        id: task.id as string
-      }];
+/** 与 demo.k8s.agent.tools.local.planning.TaskTools + artifact body.metadata 对齐 */
+const todos = computed((): AiAgentTaskRow[] => {
+  const body = props.toolCall.body as Record<string, unknown> | null | undefined
+  if (!body) return []
+  let rows = extractTaskRowsFromAiAgentToolBody(body)
+  const input = body.input as Record<string, unknown> | undefined
+  if (rows.length === 1 && input && typeof input.description === 'string' && input.description.trim()) {
+    const r = rows[0]
+    if (!r.description) {
+      rows = [{ ...r, description: input.description.trim() }]
     }
   }
+  return rows
+})
 
-  // 3. 尝试从 input.todos 获取（声明式输入）
-  if (props.toolCall.body?.input) {
-    const input = props.toolCall.body.input as Record<string, unknown>;
-    if (input.todos && Array.isArray(input.todos)) {
-      logger.info('TaskToolView', 'Found todos in input.todos', { count: input.todos.length });
-      return input.todos.map((todo: any) => ({
-        content: todo.content || 'Unnamed',
-        status: (todo.status || 'pending') as 'pending' | 'in_progress' | 'completed',
-        activeForm: todo.activeForm,
-        id: todo.id
-      }));
-    }
-  }
+const errorText = computed(() => {
+  if (props.toolCall.body?.error) return String(props.toolCall.body.error)
+  if (props.toolCall.body?.message) return String(props.toolCall.body.message)
+  return ''
+})
 
-  // 4. 尝试从 output 中解析（兼容旧格式）
-  const output = props.toolCall.body?.output as string;
-  if (output) {
-    logger.debug('TaskToolView', 'Parsing output for todos', { outputLength: output?.length });
-    const todos: TodoItem[] = [];
-    const lines = output.split('\n');
-    let currentTodo: Partial<TodoItem> = {};
-
-    for (const line of lines) {
-      if (line.includes('Created todo item:') || line.startsWith('- [')) {
-        if (currentTodo.content) {
-          todos.push(currentTodo as TodoItem);
-        }
-        currentTodo = {};
-        // 解析 markdown checkbox 格式：- [x] content
-        const checkboxMatch = line.match(/- \[(.)\] (.+)/);
-        if (checkboxMatch) {
-          const checkbox = checkboxMatch[1];
-          const content = checkboxMatch[2];
-          currentTodo.content = content;
-          currentTodo.status = checkbox === 'x' ? 'completed' : checkbox === '~' ? 'in_progress' : 'pending';
-        }
-      } else if (line.includes('Content:')) {
-        currentTodo.content = line.replace('Content:', '').trim();
-      } else if (line.includes('Status:')) {
-        const statusStr = line.replace('Status:', '').trim().toLowerCase();
-        if (statusStr.includes('pending')) currentTodo.status = 'pending';
-        else if (statusStr.includes('progress')) currentTodo.status = 'in_progress';
-        else if (statusStr.includes('completed')) currentTodo.status = 'completed';
-      } else if (line.includes('ID:')) {
-        currentTodo.id = line.replace('ID:', '').trim();
-      }
-    }
-
-    if (currentTodo.content) {
-      todos.push(currentTodo as TodoItem);
-    }
-
-    if (todos.length > 0) {
-      logger.info('TaskToolView', 'Parsed todos from output', { count: todos.length });
-      return todos;
-    }
-  }
-
-  logger.debug('TaskToolView', 'No todos found, returning empty array');
-  return [];
-});
-
-// 副标题：显示任务统计
 const subtitle = computed(() => {
-  if (!todos.value || todos.value.length === 0) {
-    return 'No tasks';
-  }
-  const completed = todos.value.filter(t => t.status === 'completed').length;
-  const inProgress = todos.value.filter(t => t.status === 'in_progress').length;
-  const pending = todos.value.filter(t => t.status === 'pending').length;
-
+  if (errorText.value && !todos.value.length) return '见下方错误说明'
+  if (!todos.value.length) return '暂无任务'
+  const completed = todos.value.filter(t => t.status === 'completed').length
+  const inProgress = todos.value.filter(t => t.status === 'in_progress').length
+  const pending = todos.value.filter(t => t.status === 'pending').length
   if (inProgress > 0) {
-    return `${completed}/${todos.value.length} completed · ${inProgress} in progress`;
+    return `${completed}/${todos.value.length} 已完成 · ${inProgress} 进行中`
   }
   if (pending > 0) {
-    return `${completed}/${todos.value.length} completed · ${pending} pending`;
+    return `${completed}/${todos.value.length} 已完成 · ${pending} 待开始`
   }
-  return `${completed}/${todos.value.length} completed`;
-});
+  return `${completed}/${todos.value.length} 已完成`
+})
 
-// 错误文本
-const errorText = computed(() => {
-  if (props.toolCall.body?.error) {
-    return String(props.toolCall.body.error);
-  }
-  if (props.toolCall.body?.message) {
-    return String(props.toolCall.body.message);
-  }
-  return '';
-});
-
-// Input 内容（JSON 格式）
 const inputContent = computed(() => {
   if (props.toolCall.body?.input) {
-    return JSON.stringify(props.toolCall.body.input, null, 2);
+    return JSON.stringify(props.toolCall.body.input, null, 2)
   }
-  return '';
-});
+  return ''
+})
 
-const showInput = computed(() => {
-  return !!inputContent.value;
-});
+const showInput = computed(() => !!inputContent.value)
 
-// Output 内容
+/** 优先展示顶层 content（与 Enhanced 循环写入一致），否则 output */
 const outputContent = computed(() => {
-  if (props.toolCall.body?.output) {
-    if (typeof props.toolCall.body.output === 'string') {
-      return props.toolCall.body.output;
-    }
-    return JSON.stringify(props.toolCall.body.output, null, 2);
+  const body = props.toolCall.body as Record<string, unknown> | undefined
+  if (!body) return ''
+  if (typeof body.content === 'string' && body.content) return body.content
+  if (body.output != null && body.output !== '') {
+    if (typeof body.output === 'string') return body.output
+    return JSON.stringify(body.output, null, 2)
   }
-  return '';
-});
+  return ''
+})
 
-const showOutput = computed(() => {
-  return !!outputContent.value;
-});
+const showOutput = computed(() => !!outputContent.value)
 
-// 获取复选框符号
-const getCheckboxSymbol = (status: string): string => {
+function getCheckboxSymbol(status: string): string {
   switch (status) {
     case 'completed':
-      return '☑';  // 完成：带勾的框
+      return '✓'
     case 'in_progress':
-      return '☐';  // 进行中：空框
-    case 'pending':
+      return '◉'
+    case 'stopped':
+      return '⊘'
+    case 'failed':
+      return '✗'
     default:
-      return '☐';  // 待处理：空框
+      return '○'
   }
-};
+}
 
-// 切换展开/收起
 function toggleExpand() {
-  isExpanded.value = !isExpanded.value;
+  isExpanded.value = !isExpanded.value
 }
 </script>
 
@@ -338,6 +257,13 @@ function toggleExpand() {
 .tool-status {
   display: flex;
   align-items: center;
+  gap: 0.25rem;
+}
+
+.run-status {
+  font-size: 1rem;
+  line-height: 1;
+  user-select: none;
 }
 
 .expand-btn {
@@ -384,7 +310,15 @@ function toggleExpand() {
 }
 
 .todo-item.completed {
-  opacity: 0.7;
+  opacity: 0.85;
+}
+
+.todo-item.status-stopped {
+  opacity: 0.75;
+}
+
+.todo-item.status-failed {
+  opacity: 1;
 }
 
 .todo-checkbox {
@@ -402,17 +336,34 @@ function toggleExpand() {
   font-weight: bold;
 }
 
-/* 状态颜色 */
-.todo-item.pending .checkbox-mark {
-  color: #9ca3af;  /* 灰色 */
+/* 状态颜色（与后端 TaskStatus 对齐；过渡便于观察轮询更新） */
+.todo-item .checkbox-mark {
+  transition: color 0.35s ease, transform 0.2s ease;
 }
 
-.todo-item.in_progress .checkbox-mark {
-  color: #3b82f6;  /* 蓝色 */
+.todo-item.pending .checkbox-mark,
+.todo-item.status-pending .checkbox-mark {
+  color: #9ca3af;
 }
 
-.todo-item.completed .checkbox-mark {
-  color: #22c55e;  /* 绿色 */
+.todo-item.in_progress .checkbox-mark,
+.todo-item.status-in_progress .checkbox-mark {
+  color: #eab308;
+}
+
+.todo-item.completed .checkbox-mark,
+.todo-item.status-completed .checkbox-mark {
+  color: #22c55e;
+}
+
+.todo-item.stopped .checkbox-mark,
+.todo-item.status-stopped .checkbox-mark {
+  color: #94a3b8;
+}
+
+.todo-item.failed .checkbox-mark,
+.todo-item.status-failed .checkbox-mark {
+  color: #ef4444;
 }
 
 .todo-content-text {
@@ -429,6 +380,13 @@ function toggleExpand() {
 .todo-text.completed {
   text-decoration: line-through;
   color: #9ca3af;
+}
+
+.todo-description {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+  line-height: 1.4;
 }
 
 .todo-active-form {

@@ -2,6 +2,14 @@
   <div class="tool-calls space-y-2">
     <div v-for="toolCall in toolCalls" :key="toolCall.id"
          class="tool-call-card">
+      <!-- Task* 工具：仅保留 TaskToolView 一块卡片，避免「外层 TaskList + 内层 TaskList」重复 -->
+      <template v-if="isTaskFamilyTool(toolCall)">
+        <div class="tool-body tool-body--task-only">
+          <component :is="getToolViewComponent(toolCall)" :toolCall="toolCall" />
+        </div>
+      </template>
+
+      <template v-else>
       <!-- 工具头部 -->
       <div class="tool-header">
         <div class="flex items-center space-x-2">
@@ -32,6 +40,7 @@
       <div class="tool-body">
         <component :is="getToolViewComponent(toolCall)" :toolCall="toolCall" />
       </div>
+      </template>
 
       <!-- 默认输出展示（当没有专用视图时） -->
       <div v-if="!getToolViewComponent(toolCall)" class="default-output">
@@ -63,8 +72,8 @@
 <script setup lang="ts">
 import { computed, type Component, onMounted } from 'vue'
 import type { ToolCallArtifact } from '@/types/happy-protocol'
-import { toolViews } from '@/tools/views'
 import { getToolMetadata, TOOL_ICONS } from '@/tools/tool-registry'
+import { isTaskFamilyToolCall } from '@/utils/task-tool-merge'
 import { logger } from '@/utils/debug-logger'
 
 import BashView from '@/tools/views/BashView.vue'
@@ -85,65 +94,48 @@ const props = defineProps<{
 
 // 组件挂载日志
 onMounted(() => {
-  logger.logComponentMount('ToolCalls', { toolCallsCount: props.toolCalls?.length })
-  props.toolCalls?.forEach(tc => {
-    const toolName = tc.header?.subtype || tc.header?.toolName || 'unknown'
-    logger.logToolCall(toolName, 'rendering', tc.id)
-  })
+  const names = props.toolCalls?.map(tc => tc.header?.subtype || tc.header?.toolName || '?') ?? []
+  logger.logComponentMount('ToolCalls', { count: names.length, tools: names })
 })
+
+function isTaskFamilyTool(toolCall: ToolCallArtifact): boolean {
+  return isTaskFamilyToolCall(toolCall)
+}
 
 // 获取工具视图组件
 const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
   const toolName = toolCall.header?.subtype || toolCall.header?.toolName || ''
-  logger.debug('ToolCalls', `Getting view component for ${toolName}`)
 
-  // 根据工具类型返回专用视图组件
+  // 根据工具类型返回专用视图组件（勿在此打 info/debug：渲染期每秒调用数百次会撑爆调试导出）
   switch (toolName) {
     case 'bash':
-      logger.info('ToolCalls', 'Routing to BashView')
       return BashView
     case 'file_edit':
     case 'file_write':
-      logger.info('ToolCalls', 'Routing to EditView')
       return EditView
     case 'file_read':
-      logger.info('ToolCalls', 'Routing to FileReadView')
       return FileReadView
-    // Task 工具集 - 使用统一的 TaskToolView 组件
     case 'TaskCreate':
     case 'TaskList':
     case 'TaskGet':
     case 'TaskUpdate':
     case 'TaskStop':
     case 'TaskOutput':
-      logger.info('ToolCalls', `Routing to TaskToolView for ${toolName}`)
       return TaskToolView
-    // AskUserQuestion 工具
     case 'AskUserQuestion':
-      logger.info('ToolCalls', 'Routing to AskUserQuestionView')
       return AskUserQuestionView
-    // ExitPlanMode 工具
     case 'ExitPlanMode':
-      logger.info('ToolCalls', 'Routing to ExitPlanModeView')
       return ExitPlanModeView
-    // LS 工具
     case 'ls':
-      logger.info('ToolCalls', 'Routing to LSView')
       return LSView
-    // MultiEdit 工具
     case 'multi_edit':
-      logger.info('ToolCalls', 'Routing to MultiEditView')
       return MultiEditView
-    // MCP 工具
     case 'mcp_connect':
     case 'mcp_disconnect':
-      logger.info('ToolCalls', 'Routing to McpServerView')
       return McpServerView
-    // Skills 工具
     case 'skill_install':
     case 'skill_uninstall':
     case 'skill_search':
-      logger.info('ToolCalls', 'Routing to SkillsView')
       return SkillsView
     default:
       logger.warn('ToolCalls', `No view component for ${toolName}, using default`)
