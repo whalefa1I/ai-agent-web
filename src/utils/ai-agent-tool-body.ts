@@ -16,6 +16,11 @@ export interface AiAgentTaskRow {
   description?: string
   status: AiAgentTaskRowStatus
   activeForm?: string
+  metadata?: {
+    useSubagent?: boolean
+    reason?: string
+    [key: string]: unknown
+  }
 }
 
 function mapServerStatus(s: unknown): AiAgentTaskRowStatus {
@@ -84,12 +89,14 @@ export function resolveTaskMetadataFromToolBody(
 export function mapTaskRecord(t: Record<string, unknown>): AiAgentTaskRow {
   const subject = (t.subject as string) || (t.content as string) || (t.title as string) || ''
   const description = (t.description as string) || undefined
+  const metadata = (t.metadata as Record<string, unknown>) || undefined
   return {
     id: (t.id as string) || undefined,
     content: subject || 'Unnamed',
     description: description && description !== subject ? description : undefined,
     status: mapServerStatus(t.status),
-    activeForm: (t.activeForm as string) || undefined
+    activeForm: (t.activeForm as string) || undefined,
+    metadata: metadata
   }
 }
 

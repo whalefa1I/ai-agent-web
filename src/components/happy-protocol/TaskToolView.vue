@@ -42,6 +42,11 @@
             <div v-if="todo.activeForm && todo.status === 'in_progress'" class="todo-active-form">
               {{ todo.activeForm }}
             </div>
+            <!-- Subagent 标识 -->
+            <div v-if="todo.metadata?.useSubagent" class="todo-subagent-badge">
+              <span class="subagent-icon">🚀</span>
+              <span>Subagent</span>
+            </div>
           </div>
         </div>
       </div>
@@ -394,6 +399,23 @@ function toggleExpand() {
   color: #3b82f6;
   margin-top: 0.25rem;
   font-style: italic;
+}
+
+.todo-subagent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: #7c3aed;
+  background: #f3e8ff;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+  margin-top: 0.375rem;
+  font-weight: 500;
+}
+
+.todo-subagent-badge .subagent-icon {
+  font-size: 0.75rem;
 }
 
 /* 空状态 */
