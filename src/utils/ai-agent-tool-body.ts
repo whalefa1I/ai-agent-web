@@ -17,7 +17,6 @@ export interface AiAgentTaskRow {
   status: AiAgentTaskRowStatus
   activeForm?: string
   metadata?: {
-    useSubagent?: boolean
     reason?: string
     [key: string]: unknown
   }

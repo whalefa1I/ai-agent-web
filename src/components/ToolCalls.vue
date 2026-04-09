@@ -86,6 +86,7 @@ import LSView from '@/tools/views/LSView.vue'
 import MultiEditView from '@/tools/views/MultiEditView.vue'
 import McpServerView from '@/tools/views/McpServerView.vue'
 import SkillsView from '@/tools/views/SkillsView.vue'
+import SpawnSubagentView from '@/tools/views/SpawnSubagentView.vue'
 
 // @ts-ignore - ToolCallArtifact 类型包含 body 属性
 const props = defineProps<{
@@ -142,6 +143,8 @@ const getToolViewComponent = (toolCall: ToolCallArtifact): Component | null => {
     case 'skill_uninstall':
     case 'skill_search':
       return SkillsView
+    case 'spawn_subagent':
+      return SpawnSubagentView
     default:
       // 仅首次告警，避免渲染循环刷屏。
       if (!warnedMissingViews.has(toolName)) {
