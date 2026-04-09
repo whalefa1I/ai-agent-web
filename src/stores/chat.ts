@@ -446,30 +446,57 @@ export const useChatStore = defineStore('chat', () => {
   async function sendMessage(content: string) {
     if (!content.trim()) return
 
+    // 1. 立即添加用户消息（optimistic update）
     addUserMessage(content)
 
+    // 2. 立即设置思考状态和等待消息，让用户看到即时反馈
     isThinking.value = true
     waitPhase.value = 'waiting'
     activeUserTurnId.value = null
     apiService.value.setPollingInterval(300)
     localWaitMessageId.value = `local-wait-${Date.now()}`
-    messages.value.push({
+
+    // 添加本地等待消息占位（立即显示，不等后端响应）
+    const waitMsg: ChatMessageDTO = {
       id: localWaitMessageId.value,
       type: 'ASSISTANT',
       subtype: 'assistant-wait-message',
       content: '',
       timestamp: new Date().toISOString(),
       metadata: { source: 'local-optimistic' }
-    })
+    }
+
+    // 添加本地 thinking 占位消息（带动态加载动画）
+    const thinkingMsg: ChatMessageDTO = {
+      id: `local-thinking-${Date.now()}`,
+      type: 'THINKING',
+      content: '', // 空内容会显示加载动画
+      timestamp: new Date().toISOString()
+    }
+
+    messages.value.push(waitMsg, thinkingMsg)
 
     try {
-      // 创建 user message artifact
-      await apiService.value.sendMessage(content)
+      // 创建 user message artifact（异步，不阻塞 UI）
+      apiService.value.sendMessage(content)
+        .then(() => {
+          console.log('消息发送成功，等待后端 artifacts 更新')
+        })
+        .catch(err => {
+          console.error('发送消息失败:', err)
+          // 只在发送失败时添加错误消息
+          addAssistantMessage(`发送失败：${err instanceof Error ? err.message : '无法连接到服务器'}`)
+          isThinking.value = false
+          waitPhase.value = 'idle'
+          activeUserTurnId.value = null
+          localWaitMessageId.value = null
+          apiService.value.setPollingInterval(1000)
+        })
 
       // 轮询会自动获取新消息，收到助手回复后会移除 thinking
       // 不需要手动处理响应，Happy 模式下由 AI 服务创建 assistant message artifact
     } catch (error) {
-      console.error('发送消息失败:', error)
+      console.error('发送消息异常:', error)
       isThinking.value = false
       waitPhase.value = 'idle'
       activeUserTurnId.value = null

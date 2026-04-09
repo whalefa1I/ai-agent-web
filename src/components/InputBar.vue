@@ -290,14 +290,14 @@ const sendMessage = async () => {
   const content = input.value.trim()
   if (!content || isThinking.value) return
 
-  // 先清空输入框，再发送消息
+  // 立即清空输入框并重置高度，给用户"已发送"的即时反馈
   input.value = ''
-  await nextTick()
   if (textareaRef.value) {
     textareaRef.value.style.height = 'auto'
   }
 
   // 异步发送消息，不阻塞 UI
+  // sendMessage 内部会立即添加用户消息和 waiting/thinking 占位
   chatStore.sendMessage(content).catch(err => {
     console.error('发送失败:', err)
   })

@@ -1,6 +1,6 @@
 <template>
   <!-- max-w-[800px] 对齐 happy-app layout.maxWidth（Web 平板） -->
-  <div class="message-list mx-auto flex w-full max-w-[800px] flex-1 overflow-y-auto py-3">
+  <div ref="messageListRef" class="message-list mx-auto flex w-full max-w-[800px] flex-1 overflow-y-auto py-3">
     <div class="flex w-full flex-col gap-3 px-4">
     <!-- 遍历消息：同一用户回合内的 Task* 工具合并为一块「任务进度」 -->
     <div v-for="row in displayRows" :key="displayRowKey(row)"
@@ -184,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { marked } from 'marked'
 import ToolCalls from './ToolCalls.vue'
@@ -194,6 +194,7 @@ import { buildChatDisplayRows, type ChatDisplayRow } from '@/utils/task-tool-mer
 
 const chatStore = useChatStore()
 const messages = computed(() => chatStore.messages)
+const messageListRef = ref<HTMLElement | null>(null)
 const displayRows = computed<ChatDisplayRow[]>(() => {
   try {
     return buildChatDisplayRows(messages.value)
@@ -202,6 +203,28 @@ const displayRows = computed<ChatDisplayRow[]>(() => {
     return (messages.value || []).map((m: any) => ({ kind: 'message', message: m }))
   }
 })
+
+// 自动滚动到顶部/底部
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (messageListRef.value) {
+      messageListRef.value.scrollTo({
+        top: messageListRef.value.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
+  })
+}
+
+// 监听消息变化，自动滚动到底部
+watch(messages, (newVal, oldVal) => {
+  const newLen = newVal?.length ?? 0
+  const oldLen = oldVal?.length ?? 0
+  if (newLen > oldLen) {
+    // 有新消息时滚动到底部
+    scrollToBottom()
+  }
+}, { deep: true })
 
 function displayRowKey(row: ChatDisplayRow): string {
   return row.kind === 'task_agg' ? row.id : row.message.id
