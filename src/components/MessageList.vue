@@ -678,10 +678,22 @@ watch(displayRows, (rows, oldRows) => {
   })
 }, { deep: true })
 
+const markdownRenderer = new marked.Renderer()
+markdownRenderer.link = ({ href, title, text }) => {
+  const safeHref = href || '#'
+  const safeTitle = title ? ` title="${title.replace(/"/g, '&quot;')}"` : ''
+  return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer"${safeTitle}>${text}</a>`
+}
+
 // 渲染 Markdown
 const renderMarkdown = (content: string) => {
   const text = content ?? ''
-  return marked.parse(text, { async: false }) as string
+  return marked.parse(text, {
+    async: false,
+    gfm: true,
+    breaks: true,
+    renderer: markdownRenderer
+  }) as string
 }
 
 // 格式化时间
@@ -747,6 +759,32 @@ const getMessageTimeClass = (type: string) => {
   background: transparent;
   padding: 0;
   color: #e2e8f0;
+}
+
+.markdown-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.7em 0;
+  font-size: 0.95em;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-body :deep(th) {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.markdown-body :deep(a) {
+  color: #2563eb;
+  text-decoration: underline;
+  word-break: break-all;
 }
 
 .thinking-bubble {

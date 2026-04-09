@@ -1,34 +1,58 @@
 <template>
   <div class="spawn-subagent-view">
-    <div class="row">
-      <span class="label">状态</span>
-      <span class="value" :class="statusClass">{{ statusText }}</span>
-    </div>
-
-    <div v-if="runId" class="row">
-      <span class="label">Run ID</span>
-      <code class="value mono">{{ runId }}</code>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="summary-label">状态</div>
+        <div class="summary-value" :class="statusClass">{{ statusText }}</div>
+      </div>
+      <div v-if="runId" class="summary-item">
+        <div class="summary-label">Run ID</div>
+        <code class="summary-value mono">{{ runId }}</code>
+      </div>
     </div>
 
     <div v-if="goal" class="section">
       <div class="label">目标</div>
-      <pre class="content">{{ goal }}</pre>
+      <pre class="content plain">{{ goal }}</pre>
+    </div>
+
+    <div v-if="translationRows.length" class="section">
+      <div class="label">产出文件</div>
+      <div class="table-wrap">
+        <table class="result-table">
+          <thead>
+            <tr>
+              <th>语言</th>
+              <th>文件名</th>
+              <th>大小</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, idx) in translationRows" :key="`${row.file}-${idx}`">
+              <td>{{ row.language }}</td>
+              <td><code class="mono">{{ row.file }}</code></td>
+              <td>{{ row.size }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div v-if="resultText" class="section">
-      <div class="label">结果</div>
-      <pre class="content">{{ resultText }}</pre>
+      <div class="label">详细结果</div>
+      <div class="content markdown-body" v-html="renderedResult"></div>
     </div>
 
     <div v-if="errorText" class="section error">
       <div class="label">错误</div>
-      <pre class="content">{{ errorText }}</pre>
+      <pre class="content plain">{{ errorText }}</pre>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { marked } from 'marked'
 import type { ToolCallArtifact } from '@/types/happy-protocol'
 
 const props = defineProps<{
@@ -66,10 +90,37 @@ const resultText = computed(() => {
   return ''
 })
 
+interface TranslationRow {
+  language: string
+  file: string
+  size: string
+}
+
+const translationRows = computed<TranslationRow[]>(() => {
+  const text = resultText.value
+  if (!text) return []
+  const rows: TranslationRow[] = []
+  const lineRegex = /^\s*\d+\.\s*[✅✔]?\s*\*{0,2}([^*(\n]+?)\*{0,2}\s*\(([^)\n]+)\)\s*-\s*([^\n]+)\s*$/gm
+  let m: RegExpExecArray | null
+  while ((m = lineRegex.exec(text)) !== null) {
+    const language = m[1]?.trim() || '未知'
+    const file = m[2]?.trim() || 'unknown'
+    const size = m[3]?.trim() || ''
+    rows.push({ language, file, size })
+  }
+  return rows
+})
+
+const renderedResult = computed(() => {
+  const text = resultText.value ?? ''
+  return marked.parse(text, { async: false, gfm: true, breaks: true }) as string
+})
+
 const statusText = computed(() => {
   if (errorText.value) return '失败'
-  if (runId.value) return '已触发'
-  return '完成'
+  if (translationRows.value.length > 0) return `已完成（${translationRows.value.length} 个文件）`
+  if (runId.value) return '执行中/已触发'
+  return '已完成'
 })
 
 const statusClass = computed(() => {
@@ -82,32 +133,45 @@ const statusClass = computed(() => {
 .spawn-subagent-view {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px;
 }
 
-.row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.summary-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 8px;
+}
+
+.summary-label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 600;
+  margin-bottom: 2px;
 }
 
 .label {
-  min-width: 64px;
   font-size: 12px;
   color: #6b7280;
   font-weight: 600;
 }
 
-.value {
+.summary-value {
   font-size: 12px;
   color: #111827;
 }
 
-.value.ok {
+.summary-value.ok {
   color: #166534;
 }
 
-.value.failed {
+.summary-value.failed {
   color: #b91c1c;
 }
 
@@ -129,9 +193,53 @@ const statusClass = computed(() => {
 
 .content {
   margin: 4px 0 0;
-  white-space: pre-wrap;
   word-break: break-word;
   font-size: 12px;
   color: #111827;
+}
+
+.content.plain {
+  white-space: pre-wrap;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.result-table th,
+.result-table td {
+  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.result-table th {
+  background: #f3f4f6;
+  color: #374151;
+  font-weight: 600;
+}
+
+.markdown-body :deep(p) {
+  margin: 0.45em 0;
+}
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin: 0.45em 0;
+  padding-left: 1.2em;
+}
+
+.markdown-body :deep(a) {
+  color: #2563eb;
+  text-decoration: underline;
+  word-break: break-all;
 }
 </style>

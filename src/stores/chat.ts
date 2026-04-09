@@ -25,6 +25,7 @@ export const useChatStore = defineStore('chat', () => {
   const apiService = ref<HappyApiService>(new HappyApiService())
   const stopPolling = ref<(() => void) | null>(null)
   const pollingFailureCount = ref(0)
+  const localWaitMessageId = ref<string | null>(null)
 
   // 计算属性
   const hasPendingPermission = computed(() => pendingPermission.value !== null)
@@ -82,6 +83,8 @@ export const useChatStore = defineStore('chat', () => {
           isThinking.value = false
           waitPhase.value = 'idle'
           activeUserTurnId.value = null
+          localWaitMessageId.value = null
+          apiService.value.setPollingInterval(1000)
           messages.value = messages.value.filter(m => m.type !== 'THINKING')
           addAssistantMessage(
             `连接中断，已停止等待。请检查服务地址与网络后重试。` +
@@ -118,6 +121,15 @@ export const useChatStore = defineStore('chat', () => {
 
     const status = String(body.status || header.status || '').toLowerCase()
     const duration = typeof body.durationMs === 'number' ? `（${body.durationMs}ms）` : ''
+    const inputSummaryRaw =
+      (typeof header.inputSummary === 'string' ? header.inputSummary : '') ||
+      (typeof body.inputDisplay === 'string' ? body.inputDisplay : '')
+    const inputObj = body.input
+    const inputFallback =
+      inputObj && typeof inputObj === 'object'
+        ? JSON.stringify(inputObj).slice(0, 180)
+        : ''
+    const inputPreview = (inputSummaryRaw || inputFallback || '').trim()
     const outputRaw = body.output
     const outputText =
       typeof outputRaw === 'string'
@@ -131,10 +143,12 @@ export const useChatStore = defineStore('chat', () => {
       return `执行 ${toolName} 失败${duration}${outputPreview ? `：${outputPreview}` : ''}`
     }
     if (status === 'completed') {
-      return `已完成 ${toolName}${duration}${outputPreview ? `：${outputPreview}` : ''}`
+      return `已完成 ${toolName}${duration}${outputPreview ? `：${outputPreview}` : (inputPreview ? `（输入：${inputPreview}）` : '')}`
     }
     if (status === 'running' || status === 'in_progress' || status === 'started') {
-      return `正在执行 ${toolName}...`
+      return inputPreview
+        ? `正在执行 ${toolName}（输入：${inputPreview}）...`
+        : `正在执行 ${toolName}...`
     }
     return null
   }
@@ -240,6 +254,30 @@ export const useChatStore = defineStore('chat', () => {
       return (typePriority[a.type] ?? 9) - (typePriority[b.type] ?? 9)
     })
 
+    const hasWaitOrProgress = allMessages.some(
+      m =>
+        (m.type === 'ASSISTANT' &&
+          (m.subtype === 'assistant-wait-message' ||
+            m.subtype === 'assistant-progress-message' ||
+            m.subtype === 'assistant-loop-state-message')) ||
+        m.type === 'TOOL' ||
+        m.type === 'THINKING'
+    )
+    if (isThinking.value && !hasWaitOrProgress) {
+      const id = localWaitMessageId.value || `local-wait-${Date.now()}`
+      localWaitMessageId.value = id
+      allMessages.push({
+        id,
+        type: 'ASSISTANT' as const,
+        subtype: 'assistant-wait-message',
+        content: '',
+        timestamp: new Date().toISOString(),
+        metadata: { source: 'local-optimistic' }
+      })
+    } else if (hasWaitOrProgress) {
+      localWaitMessageId.value = null
+    }
+
     messages.value = allMessages
 
     // 当前回合门控：仅显示当前 userTurn 的等待状态，避免历史轮次误亮
@@ -277,6 +315,8 @@ export const useChatStore = defineStore('chat', () => {
       isThinking.value = false
       waitPhase.value = 'idle'
       activeUserTurnId.value = null
+      localWaitMessageId.value = null
+      apiService.value.setPollingInterval(1000)
     } else if (isThinking.value) {
       const hasToolCompletedInCurrentRound = toolCalls.some(tc => {
         const body = (tc.body ?? {}) as Record<string, unknown>
@@ -327,6 +367,8 @@ export const useChatStore = defineStore('chat', () => {
               isThinking.value = false
               waitPhase.value = 'idle'
               activeUserTurnId.value = null
+              localWaitMessageId.value = null
+              apiService.value.setPollingInterval(1000)
               // 仅移除本地占位的空 thinking，不移除后端返回的 thinking 内容
               messages.value = messages.value.filter(m => !(m.type === 'THINKING' && !m.content))
             }
@@ -409,6 +451,16 @@ export const useChatStore = defineStore('chat', () => {
     isThinking.value = true
     waitPhase.value = 'waiting'
     activeUserTurnId.value = null
+    apiService.value.setPollingInterval(300)
+    localWaitMessageId.value = `local-wait-${Date.now()}`
+    messages.value.push({
+      id: localWaitMessageId.value,
+      type: 'ASSISTANT',
+      subtype: 'assistant-wait-message',
+      content: '',
+      timestamp: new Date().toISOString(),
+      metadata: { source: 'local-optimistic' }
+    })
 
     try {
       // 创建 user message artifact
@@ -421,6 +473,8 @@ export const useChatStore = defineStore('chat', () => {
       isThinking.value = false
       waitPhase.value = 'idle'
       activeUserTurnId.value = null
+      localWaitMessageId.value = null
+      apiService.value.setPollingInterval(1000)
       addAssistantMessage(`错误：${error instanceof Error ? error.message : '发送失败'}`)
     }
   }
@@ -451,6 +505,8 @@ export const useChatStore = defineStore('chat', () => {
       isThinking.value = false
       waitPhase.value = 'idle'
       activeUserTurnId.value = null
+      localWaitMessageId.value = null
+      apiService.value.setPollingInterval(1000)
       const artifacts = await apiService.value.getArtifacts()
       processArtifacts(artifacts)
     } catch (error) {

@@ -175,7 +175,7 @@ export class HappyApiService {
   private sessionId: string
   private apiKey: string | null = null
   private pollingTimer: number | null = null
-  private pollingInterval: number = 1000 // 1000ms 轮询一次（降低频率避免 429）
+  private pollingInterval: number = 1000 // 默认 1000ms；等待态可临时降频以降低空窗
 
   constructor(serverUrl: string = resolveInitialServerUrl()) {
     this.serverUrl = serverUrl.replace(/\/$/, '')
@@ -320,6 +320,14 @@ export class HappyApiService {
     }
 
     return res.json()
+  }
+
+  /**
+   * 调整轮询间隔（用于发送后短时间提升反馈速度）
+   */
+  setPollingInterval(ms: number): void {
+    const clamped = Math.max(250, Math.min(5000, Number(ms) || 1000))
+    this.pollingInterval = clamped
   }
 
   /**
