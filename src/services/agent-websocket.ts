@@ -90,10 +90,19 @@ export class AgentWebSocketClient {
 
   /**
    * 获取默认 WebSocket URL
+   * 优先使用环境变量 VITE_API_BASE_URL，其次使用当前页面 host（同域部署）
    */
   private getDefaultUrl(): string {
+    // 检查是否配置了 API 基础 URL（用于前后端分离部署）
+    const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_SERVER_URL
+    if (apiBaseUrl && typeof apiBaseUrl === 'string') {
+      // 从 HTTP API 地址推导 WebSocket 地址
+      const wsProtocol = apiBaseUrl.startsWith('https:') ? 'wss:' : 'ws:'
+      const wsHost = apiBaseUrl.replace(/^https?:\/\//, '')
+      return `${wsProtocol}://${wsHost}/ws/agent/default-token`
+    }
+    // 同域部署：使用当前页面 host
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    // 使用固定的 token，实际使用时可以通过 setToken 更新
     return `${protocol}//${window.location.host}/ws/agent/default-token`
   }
 
@@ -101,8 +110,18 @@ export class AgentWebSocketClient {
    * 更新 WebSocket URL（用于动态设置 token）
    */
   updateUrl(token: string): void {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    this.url = `${protocol}//${window.location.host}/ws/agent/${token}`
+    // 检查是否配置了 API 基础 URL
+    const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_SERVER_URL
+    let wsHost: string
+
+    if (apiBaseUrl && typeof apiBaseUrl === 'string') {
+      wsHost = apiBaseUrl.replace(/^https?:\/\//, '')
+    } else {
+      wsHost = window.location.host
+    }
+
+    const protocol = apiBaseUrl?.startsWith('https:') || window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    this.url = `${protocol}//${wsHost}/ws/agent/${token}`
 
     // 如果当前已连接，需要重连
     if (this.state === 'connected' || this.state === 'connecting') {
