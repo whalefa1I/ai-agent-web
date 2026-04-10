@@ -576,17 +576,24 @@ export const useChatStore = defineStore('chat', () => {
 
   /**
    * 处理 spawn_subagent 工具调用 - 自动启动 SSE 进度监听
+   * 支持批量任务(batch)和单任务(single)两种模式
    */
   function handleSpawnSubagentCall(body: Record<string, any>) {
     const metadata = body?.metadata || {}
     const batch = metadata?.batch
     const subagent = metadata?.subagent
     
-    // 检查是否有 batch 信息（多任务并行）
+    // 获取 opsSecret
+    const opsSecret = localStorage.getItem('ai-agent-ops-secret') || ''
+    if (!opsSecret) {
+      console.warn('[ChatStore] Cannot start SSE: missing opsSecret in localStorage')
+      return
+    }
+    
+    // ===== 批量任务路径 (batch) =====
     if (batch && batch.batchId) {
       console.log('[ChatStore] Detected spawn_subagent batch:', batch.batchId)
       
-      // 提取任务列表
       const tasks: { runId: string; goal: string }[] = []
       
       // 从 batch.runIds 提取
@@ -600,59 +607,26 @@ export const useChatStore = defineStore('chat', () => {
         })
       }
       
-      // 如果没有 runIds，从 input.batchTasks 提取（等待 SSE 更新实际 runId）
-      if (tasks.length === 0 && body.input?.batchTasks) {
-        body.input.batchTasks.forEach((task: any, index: number) => {
-          tasks.push({
-            runId: `pending-${index}`, // 临时 ID，SSE 更新后会替换
-            goal: task.goal || task.taskName || `任务 ${index + 1}`
-          })
-        })
-      }
-      
       if (tasks.length > 0) {
-        // 初始化 SSE 批次
-        subagentSseService.initBatch(
-          batch.batchId,
-          batch.sessionId || sessionId.value,
-          tasks
-        )
-        
-        // 启动 SSE 连接（需要 opsSecret）
-        // 优先从 localStorage 获取，也可以从配置或环境变量获取
-        const opsSecret = localStorage.getItem('ai-agent-ops-secret') || 
-                         (import.meta as any).env?.VITE_OPS_SECRET || ''
-        
-        if (opsSecret && batch.sessionId) {
-          console.log('[ChatStore] Starting SSE connection for batch:', batch.batchId)
-          subagentSseService.connect(batch.sessionId, opsSecret)
-        } else {
-          console.warn('[ChatStore] Cannot start SSE: missing opsSecret or sessionId')
-        }
+        subagentSseService.initBatch(batch.batchId, sessionId.value, tasks)
+        subagentSseService.connect(sessionId.value, opsSecret)
+        console.log('[ChatStore] SSE started for batch:', batch.batchId)
       }
     } 
-    // 单任务 spawn
+    // ===== 单任务路径 (single) =====
     else if (subagent && subagent.runId) {
       console.log('[ChatStore] Detected single spawn_subagent:', subagent.runId)
       
-      // 单任务也可以显示进度，初始化一个单任务的 batch
-      const singleTask = {
+      // 为单任务创建一个虚拟批次
+      const batchId = `single-${subagent.runId}`
+      const tasks = [{
         runId: subagent.runId,
         goal: subagent.goal || body.input?.goal || '子任务'
-      }
+      }]
       
-      subagentSseService.initBatch(
-        `single-${subagent.runId}`,
-        sessionId.value,
-        [singleTask]
-      )
-      
-      const opsSecret = localStorage.getItem('ai-agent-ops-secret') || 
-                       (import.meta as any).env?.VITE_OPS_SECRET || ''
-      
-      if (opsSecret) {
-        subagentSseService.connect(sessionId.value, opsSecret, subagent.runId)
-      }
+      subagentSseService.initBatch(batchId, sessionId.value, tasks)
+      subagentSseService.connect(sessionId.value, opsSecret, subagent.runId)
+      console.log('[ChatStore] SSE started for single task:', subagent.runId)
     }
   }
 

@@ -1,16 +1,25 @@
 <template>
   <div class="spawn-subagent-view">
-    <!-- SSE 实时进度面板（当有 batch 信息时显示） -->
+    <!-- SSE 实时进度面板（自动显示，支持单任务和多任务） -->
     <SubagentProgressPanel
       v-if="shouldShowProgressPanel"
-      :batch="sseBatch"
+      :batch="displayBatch"
       :is-connected="isConnected"
       :connection-error="connectionError"
       :compact="isCompact"
       @reconnect="handleReconnect"
     />
 
-    <!-- 单任务基础信息 -->
+    <!-- 单任务简化进度（当没有批次信息但正在执行时） -->
+    <div v-else-if="isSingleTaskRunning" class="single-task-progress">
+      <div class="progress-header">
+        <div class="spinner"></div>
+        <span class="progress-text">{{ singleTaskStatus }}</span>
+      </div>
+      <div v-if="runId" class="run-id">{{ shortenRunId(runId) }}</div>
+    </div>
+
+    <!-- 基础信息（已完成或失败时） -->
     <div v-else class="summary-grid">
       <div class="summary-item">
         <div class="summary-label">状态</div>
@@ -80,6 +89,20 @@ const {
   allTasksCompleted 
 } = useSubagentSse()
 
+// 用于传递给进度面板的批次信息
+const displayBatch = computed(() => {
+  // 优先使用 SSE 服务中的批次
+  if (sseBatch.value && sseBatch.value.totalTasks > 0) {
+    return sseBatch.value
+  }
+  // 其次使用 toolCall 中的 batch 元数据
+  const batch = metadata.value.batch
+  if (batch && batch.totalTasks > 0) {
+    return batch as any
+  }
+  return null
+})
+
 const body = computed(() => (props.toolCall.body || {}) as Record<string, any>)
 const metadata = computed(() => (body.value.metadata || {}) as Record<string, any>)
 const subagent = computed(() => (metadata.value.subagent || {}) as Record<string, any>)
@@ -137,18 +160,31 @@ const renderedResult = computed(() => {
   return marked.parse(text, { async: false, gfm: true, breaks: true }) as string
 })
 
-// 判断是否应该显示进度面板（有 batch 信息或检测到多任务）
+// 判断是否应该显示完整进度面板
 const shouldShowProgressPanel = computed(() => {
-  // 如果 SSE 已经有批次信息，显示面板
+  // 如果有 SSE 批次信息，显示面板
   if (sseBatch.value && sseBatch.value.totalTasks > 0) {
     return true
   }
-  // 如果 toolCall 中包含 batch 信息，初始化 SSE
+  // 如果有 batch 元数据，显示面板
   const batch = metadata.value.batch
   if (batch && batch.totalTasks > 0) {
     return true
   }
   return false
+})
+
+// 单任务是否正在执行（没有 batch 信息但有 runId）
+const isSingleTaskRunning = computed(() => {
+  return runId.value && !resultText.value && !errorText.value
+})
+
+// 单任务状态文本
+const singleTaskStatus = computed(() => {
+  if (isConnected.value) {
+    return '子任务执行中，实时连接已建立...'
+  }
+  return '子任务执行中...'
 })
 
 // 紧凑模式（当任务完成时自动切换到紧凑）
@@ -162,15 +198,29 @@ const isBatchTask = computed(() => {
   return input.batchTasks && Array.isArray(input.batchTasks) && input.batchTasks.length > 0
 })
 
-// 初始化 SSE 连接
+// 获取会话 ID（从 store）
+const getSessionId = () => {
+  // 尝试从 localStorage 获取当前会话
+  return localStorage.getItem('happy-session-id') || ''
+}
+
+// 初始化 SSE 连接（支持单任务和批量任务）
 const initSseConnection = () => {
-  // 从 toolCall 中提取 batch 信息初始化 SSE
+  const opsSecret = localStorage.getItem('ai-agent-ops-secret') || ''
+  const sessionId = getSessionId()
+  
+  if (!opsSecret || !sessionId) {
+    console.warn('[SpawnSubagentView] Cannot start SSE: missing opsSecret or sessionId')
+    return
+  }
+
+  // 从 toolCall 中提取 batch 信息
   const batch = metadata.value.batch
+  
   if (batch && batch.batchId) {
-    // 提取任务列表
+    // ===== 批量任务路径 =====
     const tasks: { runId: string; goal: string }[] = []
     
-    // 从 batch.runIds 和 batch.tasks 中提取
     if (batch.runIds && Array.isArray(batch.runIds)) {
       batch.runIds.forEach((runId: string, index: number) => {
         const taskName = batch.tasks?.[index]?.taskName || `Task ${index + 1}`
@@ -179,41 +229,29 @@ const initSseConnection = () => {
       })
     }
     
-    // 如果没有从 batch 提取到，尝试从 input.batchTasks 提取
-    if (tasks.length === 0 && isBatchTask.value) {
-      const input = body.value.input || {}
-      const batchTasks = input.batchTasks || []
-      batchTasks.forEach((task: any, index: number) => {
-        tasks.push({
-          runId: `pending-${index}`, // 临时的，等待 SSE 更新
-          goal: task.goal || task.taskName || `Task ${index + 1}`
-        })
-      })
-    }
-    
     if (tasks.length > 0) {
-      subagentSseService.initBatch(
-        batch.batchId,
-        batch.sessionId || 'unknown',
-        tasks
-      )
-      
-      // 连接 SSE（需要 sessionId 和 opsSecret）
-      // 注意：opsSecret 应该来自配置或环境变量
-      const opsSecret = localStorage.getItem('ai-agent-ops-secret') || ''
-      if (opsSecret && batch.sessionId) {
-        subagentSseService.connect(batch.sessionId, opsSecret)
-      }
+      subagentSseService.initBatch(batch.batchId, sessionId, tasks)
+      subagentSseService.connect(sessionId, opsSecret)
+      console.log('[SpawnSubagentView] Batch SSE initialized:', batch.batchId)
     }
+  } else if (runId.value) {
+    // ===== 单任务路径 =====
+    // 为单任务创建一个虚拟批次
+    const singleBatchId = `single-${runId.value}`
+    subagentSseService.initBatch(singleBatchId, sessionId, [
+      { runId: runId.value, goal: goal.value || '子任务' }
+    ])
+    subagentSseService.connect(sessionId, opsSecret, runId.value)
+    console.log('[SpawnSubagentView] Single task SSE initialized:', runId.value)
   }
 }
 
 // 重连处理
 const handleReconnect = () => {
-  const batch = metadata.value.batch
   const opsSecret = localStorage.getItem('ai-agent-ops-secret') || ''
-  if (batch?.sessionId && opsSecret) {
-    subagentSseService.connect(batch.sessionId, opsSecret)
+  const sessionId = getSessionId()
+  if (sessionId && opsSecret) {
+    subagentSseService.connect(sessionId, opsSecret)
   }
 }
 
@@ -222,15 +260,11 @@ watch(() => props.toolCall, (newToolCall) => {
   if (newToolCall) {
     const body = (newToolCall.body || {}) as Record<string, any>
     const metadata = (body.metadata || {}) as Record<string, any>
-    const batch = metadata.batch
     
-    // 检测到 batch 信息时初始化 SSE
-    if (batch && batch.batchId) {
-      // 延迟一点初始化，等待后端准备好
-      setTimeout(() => {
-        initSseConnection()
-      }, 500)
-    }
+    // 延迟初始化，等待后端准备好
+    setTimeout(() => {
+      initSseConnection()
+    }, 500)
   }
 }, { immediate: true })
 
@@ -238,6 +272,13 @@ watch(() => props.toolCall, (newToolCall) => {
 onMounted(() => {
   initSseConnection()
 })
+
+// 工具函数
+const shortenRunId = (runId: string) => {
+  if (!runId) return ''
+  if (runId.length <= 16) return runId
+  return runId.substring(0, 8) + '...' + runId.substring(-4)
+}
 
 const statusText = computed(() => {
   if (errorText.value) return '失败'
@@ -364,5 +405,48 @@ const statusClass = computed(() => {
   color: #2563eb;
   text-decoration: underline;
   word-break: break-all;
+}
+
+/* 单任务进度样式 */
+.single-task-progress {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #bfdbfe;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.progress-text {
+  font-size: 13px;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.run-id {
+  font-size: 11px;
+  color: #6b7280;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
 }
 </style>

@@ -130,28 +130,53 @@ const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
 }
 
-// 计算属性
-const totalCount = computed(() => props.batch?.totalTasks ?? 0)
-const completedCount = computed(() => props.batch?.completedTasks ?? 0)
-const failedCount = computed(() => props.batch?.failedTasks ?? 0)
+// 创建默认批次（当没有 batch 但已连接时）
+const effectiveBatch = computed<BatchInfo | null>(() => {
+  if (props.batch) return props.batch
+  
+  // 如果没有 batch 但已连接，显示一个简化版
+  if (props.isConnected) {
+    return {
+      batchId: 'connecting',
+      sessionId: '',
+      totalTasks: 1,
+      completedTasks: 0,
+      failedTasks: 0,
+      status: 'running',
+      tasks: [{
+        runId: 'unknown',
+        goal: '子任务执行中...',
+        status: 'running'
+      }],
+      startedAt: Date.now()
+    }
+  }
+  
+  return null
+})
+
+// 计算属性（使用 effectiveBatch）
+const totalCount = computed(() => effectiveBatch.value?.totalTasks ?? 0)
+const completedCount = computed(() => effectiveBatch.value?.completedTasks ?? 0)
+const failedCount = computed(() => effectiveBatch.value?.failedTasks ?? 0)
 const progressPercentage = computed(() => {
   if (totalCount.value === 0) return 0
   return Math.round((completedCount.value / totalCount.value) * 100)
 })
 const allTasksCompleted = computed(() => {
-  return completedCount.value + failedCount.value >= totalCount.value
+  return completedCount.value + failedCount.value >= totalCount.value && totalCount.value > 0
 })
 const hasFailedTasks = computed(() => failedCount.value > 0)
 const displayTaskCount = computed(() => totalCount.value)
 const estimatedRemaining = computed(() => {
-  if (!props.batch?.estimatedEndAt) return null
-  const remaining = Math.ceil((props.batch.estimatedEndAt - Date.now()) / 1000)
+  if (!effectiveBatch.value?.estimatedEndAt) return null
+  const remaining = Math.ceil((effectiveBatch.value.estimatedEndAt - Date.now()) / 1000)
   return remaining > 0 ? remaining : null
 })
 
 // 排序后的任务列表（运行中的在前，完成的在后）
 const sortedTasks = computed(() => {
-  const tasks = props.batch?.tasks ?? []
+  const tasks = effectiveBatch.value?.tasks ?? []
   return [...tasks].sort((a, b) => {
     const statusOrder: Record<string, number> = {
       'running': 0,
