@@ -11,6 +11,6 @@
     }
   ],
   "env": {
-    "VITE_SERVER_URL": "https://ai-agent-server-production-a36e.up.railway.app"
+    "VITE_SERVER_URL": "https://ai-agent-server-production-d28a.up.railway.app"
   }
 }
