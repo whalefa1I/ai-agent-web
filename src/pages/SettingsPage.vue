@@ -111,6 +111,16 @@
         </div>
       </section>
 
+      <!-- 子任务监控配置 -->
+      <section class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
+          <h2 class="font-semibold text-gray-800">子任务监控</h2>
+        </div>
+        <div class="p-4">
+          <SettingsOpsSecret />
+        </div>
+      </section>
+
       <!-- 关于 -->
       <section class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
@@ -138,6 +148,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
+import SettingsOpsSecret from '@/components/SettingsOpsSecret.vue'
 
 const router = useRouter()
 const chatStore = useChatStore()

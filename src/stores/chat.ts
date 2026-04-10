@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { happyApi, HappyApiService } from '@/services/happy-api'
+import { subagentSseService } from '@/services/subagent-sse-service'
 import type {
   HappyArtifact,
   MessageArtifact,
@@ -380,6 +381,13 @@ export const useChatStore = defineStore('chat', () => {
           processArtifacts(artifacts)
           // 同时检查是否有权限请求（工具调用可能触发权限请求）
           fetchPendingPermissions()
+          
+          // 检测 spawn_subagent 工具调用，自动启动 SSE 进度监听
+          const toolName = header.toolName || header.title || ''
+          if (toolName === 'spawn_subagent' || toolName === 'Spawn Subagent') {
+            const body = apiService.value.parseBody(artifact)
+            handleSpawnSubagentCall(body)
+          }
         })
       } else if (header.type === 'todo') {
         // 新待办事项或待办状态更新，重新加载所有消息以更新聊天流
@@ -445,6 +453,9 @@ export const useChatStore = defineStore('chat', () => {
    */
   async function sendMessage(content: string) {
     if (!content.trim()) return
+
+    // 0. 重置之前的 spawn SSE 状态（避免旧进度影响新消息）
+    subagentSseService.reset()
 
     // 1. 立即添加用户消息（optimistic update）
     addUserMessage(content)
@@ -564,6 +575,88 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 处理 spawn_subagent 工具调用 - 自动启动 SSE 进度监听
+   */
+  function handleSpawnSubagentCall(body: Record<string, any>) {
+    const metadata = body?.metadata || {}
+    const batch = metadata?.batch
+    const subagent = metadata?.subagent
+    
+    // 检查是否有 batch 信息（多任务并行）
+    if (batch && batch.batchId) {
+      console.log('[ChatStore] Detected spawn_subagent batch:', batch.batchId)
+      
+      // 提取任务列表
+      const tasks: { runId: string; goal: string }[] = []
+      
+      // 从 batch.runIds 提取
+      if (batch.runIds && Array.isArray(batch.runIds)) {
+        batch.runIds.forEach((runId: string, index: number) => {
+          const taskInfo = batch.tasks?.[index] || {}
+          tasks.push({
+            runId,
+            goal: taskInfo.goal || taskInfo.taskName || `任务 ${index + 1}`
+          })
+        })
+      }
+      
+      // 如果没有 runIds，从 input.batchTasks 提取（等待 SSE 更新实际 runId）
+      if (tasks.length === 0 && body.input?.batchTasks) {
+        body.input.batchTasks.forEach((task: any, index: number) => {
+          tasks.push({
+            runId: `pending-${index}`, // 临时 ID，SSE 更新后会替换
+            goal: task.goal || task.taskName || `任务 ${index + 1}`
+          })
+        })
+      }
+      
+      if (tasks.length > 0) {
+        // 初始化 SSE 批次
+        subagentSseService.initBatch(
+          batch.batchId,
+          batch.sessionId || sessionId.value,
+          tasks
+        )
+        
+        // 启动 SSE 连接（需要 opsSecret）
+        // 优先从 localStorage 获取，也可以从配置或环境变量获取
+        const opsSecret = localStorage.getItem('ai-agent-ops-secret') || 
+                         (import.meta as any).env?.VITE_OPS_SECRET || ''
+        
+        if (opsSecret && batch.sessionId) {
+          console.log('[ChatStore] Starting SSE connection for batch:', batch.batchId)
+          subagentSseService.connect(batch.sessionId, opsSecret)
+        } else {
+          console.warn('[ChatStore] Cannot start SSE: missing opsSecret or sessionId')
+        }
+      }
+    } 
+    // 单任务 spawn
+    else if (subagent && subagent.runId) {
+      console.log('[ChatStore] Detected single spawn_subagent:', subagent.runId)
+      
+      // 单任务也可以显示进度，初始化一个单任务的 batch
+      const singleTask = {
+        runId: subagent.runId,
+        goal: subagent.goal || body.input?.goal || '子任务'
+      }
+      
+      subagentSseService.initBatch(
+        `single-${subagent.runId}`,
+        sessionId.value,
+        [singleTask]
+      )
+      
+      const opsSecret = localStorage.getItem('ai-agent-ops-secret') || 
+                       (import.meta as any).env?.VITE_OPS_SECRET || ''
+      
+      if (opsSecret) {
+        subagentSseService.connect(sessionId.value, opsSecret, subagent.runId)
+      }
+    }
+  }
+
+  /**
    * 清理
    */
   function cleanup() {
@@ -571,6 +664,8 @@ export const useChatStore = defineStore('chat', () => {
       stopPolling.value()
       stopPolling.value = null
     }
+    // 同时清理 SSE 连接
+    subagentSseService.disconnect()
   }
 
   return {
@@ -595,6 +690,15 @@ export const useChatStore = defineStore('chat', () => {
     loadHistory,
     loadStats,
     updateServerUrl,
-    cleanup
+    cleanup,
+    // SSE 子任务进度状态（供组件使用）
+    spawnSseBatch: subagentSseService.currentBatch,
+    spawnSseIsConnected: subagentSseService.isConnected,
+    spawnSseConnectionError: subagentSseService.connectionError,
+    spawnSseProgress: subagentSseService.progressPercentage,
+    spawnSseRemainingTime: subagentSseService.estimatedRemainingSeconds,
+    spawnSseAllCompleted: subagentSseService.allTasksCompleted,
+    spawnSseHasFailed: subagentSseService.hasFailedTasks,
+    resetSpawnSse: () => subagentSseService.reset()
   }
 })
