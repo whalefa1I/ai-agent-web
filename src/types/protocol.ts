@@ -22,6 +22,12 @@ export type ClientMessageType =
   | 'PING'
   | 'STOP_TASK'
 
+// 客户端消息 - 获取历史消息
+export interface GetHistoryMessage extends ClientMessage {
+  type: 'GET_HISTORY'
+  limit?: number
+}
+
 // 服务端消息类型
 export type ServerMessageType =
   | 'CONNECTED'

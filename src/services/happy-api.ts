@@ -653,7 +653,9 @@ export class HappyApiService {
         bodyVersion: 0,
         headerVersion: 1,
         accountId: this.accountId,
-        sessionId: this.sessionId
+        sessionId: this.sessionId,
+        dataEncryptionKey: 'permission-key',
+        seq: 0
       }))
     } catch (error) {
       console.error('获取权限请求失败:', error)

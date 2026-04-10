@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { happyApi, HappyApiService } from '@/services/happy-api'
 import { subagentSseService } from '@/services/subagent-sse-service'
+import { agentWebSocketClient } from '@/services/agent-websocket'
 import type {
   HappyArtifact,
   MessageArtifact,
@@ -27,6 +28,11 @@ export const useChatStore = defineStore('chat', () => {
   const stopPolling = ref<(() => void) | null>(null)
   const pollingFailureCount = ref(0)
   const localWaitMessageId = ref<string | null>(null)
+  const wsConnected = ref(false)
+
+  // 当前响应构建中的内容
+  const currentResponseContent = ref('')
+  const pendingToolCallsMap = ref<Map<string, { toolName: string; input?: Record<string, any> }>>(new Map())
 
   // 计算属性
   const hasPendingPermission = computed(() => pendingPermission.value !== null)
@@ -53,17 +59,103 @@ export const useChatStore = defineStore('chat', () => {
 
     apiService.value.setServerUrl(url)
 
-    // 启动轮询
+    // 连接 Agent WebSocket（用于实时交互）
+    initAgentWebSocket()
+
+    // 启动轮询（保留用于兜底，后续可完全移除）
     startPolling()
   }
 
   /**
-   * 启动 artifacts 轮询
+   * 初始化 Agent WebSocket 连接
+   */
+  function initAgentWebSocket() {
+    // 订阅 WebSocket 状态变化
+    agentWebSocketClient.subscribeState((state) => {
+      wsConnected.value = state.state === 'connected'
+      console.log('[ChatStore] WebSocket 状态:', state.state)
+      onWebSocketStateChange(state)
+    })
+
+    // 订阅 WebSocket 消息
+    agentWebSocketClient.subscribeMessage({
+      // 文本增量（流式输出）
+      textDelta: (delta: string) => {
+        handleTextDelta(delta)
+      },
+
+      // 工具调用开始
+      toolCallStart: (toolCallId: string, toolName: string, input?: Record<string, any>) => {
+        handleToolCallStart(toolCallId, toolName, input)
+      },
+
+      // 工具调用完成
+      toolCallComplete: (toolCallId: string, toolName: string, output: string, durationMs?: number) => {
+        handleToolCallComplete(toolCallId, toolName, output, durationMs)
+      },
+
+      // 工具调用失败
+      toolCallFailed: (toolCallId: string, toolName: string, error: string, durationMs?: number) => {
+        handleToolCallFailed(toolCallId, toolName, error, durationMs)
+      },
+
+      // 响应完成
+      responseComplete: (content: string, inputTokens: number, outputTokens: number, durationMs: number) => {
+        handleResponseComplete(content, inputTokens, outputTokens, durationMs)
+      },
+
+      // 响应开始
+      responseStart: (turnId: string) => {
+        console.log('[ChatStore] 响应开始:', turnId)
+        activeUserTurnId.value = turnId
+      },
+
+      // 错误
+      error: (code: string, message: string) => {
+        console.error('[ChatStore] WebSocket 错误:', code, message)
+        addAssistantMessage(`错误：${message}`)
+        isThinking.value = false
+        waitPhase.value = 'idle'
+      },
+
+      // 连接成功
+      connected: (sessionId: string) => {
+        console.log('[ChatStore] WebSocket 已连接，sessionId:', sessionId)
+      }
+    })
+
+    // 连接 WebSocket
+    const token = localStorage.getItem('ai-agent-api-key') || 'default-token'
+    agentWebSocketClient.connect(token)
+  }
+
+  /**
+   * 通过 HTTP 加载历史消息（用于初始化）
+   */
+  async function loadHistory() {
+    try {
+      const artifacts = await apiService.value.getArtifacts()
+      processArtifacts(artifacts)
+      fetchPendingPermissions()
+      console.log('[ChatStore] 历史消息加载成功，共', artifacts.length, '条')
+    } catch (error) {
+      console.error('[ChatStore] 加载历史消息失败:', error)
+    }
+  }
+
+  /**
+   * 启动 artifacts 轮询（仅作为 WebSocket 断开的降级方案）
    */
   function startPolling() {
     // 先停止之前的轮询
     if (stopPolling.value) {
       stopPolling.value()
+    }
+
+    // 仅在 WebSocket 未连接时启动轮询
+    if (wsConnected.value) {
+      console.log('[ChatStore] WebSocket 已连接，跳过轮询')
+      return
     }
 
     stopPolling.value = apiService.value.startPolling(
@@ -94,6 +186,32 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
     )
+  }
+
+  /**
+   * WebSocket 状态变化时触发（用于控制轮询启停）
+   */
+  let hasLoadedHistory = false
+
+  function onWebSocketStateChange(state: { state: string }) {
+    if (state.state === 'connected') {
+      // WebSocket 连接成功，停止轮询
+      if (stopPolling.value) {
+        stopPolling.value()
+        stopPolling.value = null
+        console.log('[ChatStore] WebSocket 已连接，停止轮询')
+      }
+
+      // 首次连接时加载历史消息
+      if (!hasLoadedHistory) {
+        hasLoadedHistory = true
+        loadHistory()
+      }
+    } else if (state.state === 'disconnected' || state.state === 'error') {
+      // WebSocket 断开，启动轮询作为降级
+      console.log('[ChatStore] WebSocket 断开，启动轮询降级')
+      startPolling()
+    }
   }
 
   /**
@@ -449,7 +567,151 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
-   * 发送消息
+   * 处理文本增量（流式输出）
+   */
+  function handleTextDelta(delta: string) {
+    // 清除本地占位的 thinking 消息
+    messages.value = messages.value.filter(m =>
+      !(m.metadata?.source === 'local-optimistic' && m.subtype === 'assistant-wait-message')
+    )
+
+    // 查找或创建助手消息
+    let assistantMsg = messages.value.find(m =>
+      m.type === 'ASSISTANT' && m.subtype !== 'assistant-wait-message'
+    )
+
+    if (!assistantMsg) {
+      assistantMsg = {
+        id: `assistant-${Date.now()}`,
+        type: 'ASSISTANT',
+        content: '',
+        timestamp: new Date().toISOString()
+      }
+      messages.value.push(assistantMsg)
+    }
+
+    // 累加内容
+    currentResponseContent.value += delta
+    assistantMsg.content = currentResponseContent.value
+  }
+
+  /**
+   * 处理工具调用开始
+   */
+  function handleToolCallStart(toolCallId: string, toolName: string, input?: Record<string, any>) {
+    console.log('[ChatStore] 工具开始:', toolName, toolCallId)
+
+    // 记录 pending 工具
+    pendingToolCallsMap.value.set(toolCallId, { toolName, input })
+
+    // 添加工具消息
+    messages.value.push({
+      id: `tool-${toolCallId}`,
+      type: 'TOOL',
+      content: '',
+      timestamp: new Date().toISOString(),
+      toolCall: {
+        id: toolCallId,
+        header: {
+          toolName,
+          status: 'started'
+        },
+        body: {
+          status: 'started',
+          input
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      } as any
+    })
+  }
+
+  /**
+   * 处理工具调用完成
+   */
+  function handleToolCallComplete(toolCallId: string, toolName: string, output: string, durationMs?: number) {
+    console.log('[ChatStore] 工具完成:', toolName, toolCallId)
+
+    // 更新工具消息
+    const toolMsg = messages.value.find(m => m.id === `tool-${toolCallId}`)
+    if (toolMsg && toolMsg.toolCall) {
+      toolMsg.toolCall.header.status = 'completed'
+      toolMsg.toolCall.body = {
+        ...toolMsg.toolCall.body,
+        status: 'completed',
+        output,
+        durationMs
+      }
+    }
+
+    // 移除 pending 记录
+    pendingToolCallsMap.value.delete(toolCallId)
+  }
+
+  /**
+   * 处理工具调用失败
+   */
+  function handleToolCallFailed(toolCallId: string, toolName: string, error: string, durationMs?: number) {
+    console.log('[ChatStore] 工具失败:', toolName, toolCallId)
+
+    // 更新工具消息
+    const toolMsg = messages.value.find(m => m.id === `tool-${toolCallId}`)
+    if (toolMsg && toolMsg.toolCall) {
+      toolMsg.toolCall.header.status = 'failed'
+      toolMsg.toolCall.body = {
+        ...toolMsg.toolCall.body,
+        status: 'failed',
+        error,
+        durationMs
+      }
+    }
+
+    // 移除 pending 记录
+    pendingToolCallsMap.value.delete(toolCallId)
+  }
+
+  /**
+   * 处理响应完成
+   */
+  function handleResponseComplete(content: string, inputTokens: number, outputTokens: number, durationMs: number) {
+    console.log('[ChatStore] 响应完成，内容长度:', content.length)
+
+    // 更新或创建助手消息
+    let assistantMsg = messages.value.find(m =>
+      m.type === 'ASSISTANT' && m.subtype !== 'assistant-wait-message' && m.content === currentResponseContent.value
+    )
+
+    if (!assistantMsg) {
+      assistantMsg = {
+        id: `assistant-${Date.now()}`,
+        type: 'ASSISTANT',
+        content: content,
+        timestamp: new Date().toISOString(),
+        inputTokens,
+        outputTokens
+      }
+      messages.value.push(assistantMsg)
+    } else {
+      // 确保内容完整
+      assistantMsg.content = content || currentResponseContent.value
+      assistantMsg.inputTokens = inputTokens
+      assistantMsg.outputTokens = outputTokens
+    }
+
+    // 清除思考状态
+    isThinking.value = false
+    waitPhase.value = 'idle'
+    currentResponseContent.value = ''
+    apiService.value.setPollingInterval(1000)
+
+    // 移除本地占位的 thinking 消息
+    messages.value = messages.value.filter(m =>
+      !(m.metadata?.source === 'local-optimistic' && m.type === 'THINKING')
+    )
+  }
+
+  /**
+   * 发送消息（使用 WebSocket）
    */
   async function sendMessage(content: string) {
     if (!content.trim()) return
@@ -466,6 +728,7 @@ export const useChatStore = defineStore('chat', () => {
     activeUserTurnId.value = null
     apiService.value.setPollingInterval(300)
     localWaitMessageId.value = `local-wait-${Date.now()}`
+    currentResponseContent.value = ''
 
     // 添加本地等待消息占位（立即显示，不等后端响应）
     const waitMsg: ChatMessageDTO = {
@@ -487,15 +750,18 @@ export const useChatStore = defineStore('chat', () => {
 
     messages.value.push(waitMsg, thinkingMsg)
 
-    try {
-      // 创建 user message artifact（异步，不阻塞 UI）
+    // 通过 WebSocket 发送消息
+    const sent = agentWebSocketClient.sendMessage(content)
+
+    if (!sent) {
+      // WebSocket 未连接，降级使用 HTTP
+      console.warn('[ChatStore] WebSocket 未连接，降级使用 HTTP 发送')
       apiService.value.sendMessage(content)
         .then(() => {
-          console.log('消息发送成功，等待后端 artifacts 更新')
+          console.log('消息通过 HTTP 发送成功')
         })
         .catch(err => {
-          console.error('发送消息失败:', err)
-          // 只在发送失败时添加错误消息
+          console.error('HTTP 发送失败:', err)
           addAssistantMessage(`发送失败：${err instanceof Error ? err.message : '无法连接到服务器'}`)
           isThinking.value = false
           waitPhase.value = 'idle'
@@ -503,17 +769,6 @@ export const useChatStore = defineStore('chat', () => {
           localWaitMessageId.value = null
           apiService.value.setPollingInterval(1000)
         })
-
-      // 轮询会自动获取新消息，收到助手回复后会移除 thinking
-      // 不需要手动处理响应，Happy 模式下由 AI 服务创建 assistant message artifact
-    } catch (error) {
-      console.error('发送消息异常:', error)
-      isThinking.value = false
-      waitPhase.value = 'idle'
-      activeUserTurnId.value = null
-      localWaitMessageId.value = null
-      apiService.value.setPollingInterval(1000)
-      addAssistantMessage(`错误：${error instanceof Error ? error.message : '发送失败'}`)
     }
   }
 
@@ -531,24 +786,6 @@ export const useChatStore = defineStore('chat', () => {
       pendingPermission.value = null
     } catch (error) {
       console.error('响应权限失败:', error)
-    }
-  }
-
-  /**
-   * 获取历史消息
-   */
-  async function loadHistory(limit: number = 50) {
-    try {
-      // 加载历史场景不展示当前回合等待态
-      isThinking.value = false
-      waitPhase.value = 'idle'
-      activeUserTurnId.value = null
-      localWaitMessageId.value = null
-      apiService.value.setPollingInterval(1000)
-      const artifacts = await apiService.value.getArtifacts()
-      processArtifacts(artifacts)
-    } catch (error) {
-      console.error('加载历史失败:', error)
     }
   }
 
@@ -571,7 +808,13 @@ export const useChatStore = defineStore('chat', () => {
   function updateServerUrl(newUrl: string) {
     apiService.value.setServerUrl(newUrl)
     localStorage.setItem('ai-agent-settings', JSON.stringify({ serverUrl: newUrl }))
-    startPolling() // 重启轮询
+
+    // 断开并重新连接 WebSocket
+    agentWebSocketClient.disconnect()
+    setTimeout(() => {
+      const token = localStorage.getItem('ai-agent-api-key') || 'default-token'
+      agentWebSocketClient.connect(token)
+    }, 100)
   }
 
   /**
