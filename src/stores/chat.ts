@@ -599,7 +599,7 @@ export const useChatStore = defineStore('chat', () => {
    * 处理工具调用开始
    */
   function handleToolCallStart(toolCallId: string, toolName: string, input?: Record<string, any>) {
-    console.log('[ChatStore] 工具开始:', toolName, toolCallId)
+    console.log('[ChatStore] 工具开始:', toolName, toolCallId, 'input:', input)
 
     // 记录 pending 工具
     pendingToolCallsMap.value.set(toolCallId, { toolName, input })
@@ -614,6 +614,7 @@ export const useChatStore = defineStore('chat', () => {
         id: toolCallId,
         header: {
           toolName,
+          subtype: toolName,  // 添加 subtype 字段，匹配 ToolCalls.vue 的查找逻辑
           status: 'started'
         },
         body: {
@@ -624,24 +625,39 @@ export const useChatStore = defineStore('chat', () => {
         updatedAt: Date.now()
       } as any
     })
+    console.log('[ChatStore] 工具消息已添加，当前消息数:', messages.value.length)
   }
 
   /**
    * 处理工具调用完成
    */
   function handleToolCallComplete(toolCallId: string, toolName: string, output: string, durationMs?: number) {
-    console.log('[ChatStore] 工具完成:', toolName, toolCallId)
+    console.log('[ChatStore] 工具完成:', toolName, toolCallId, 'output:', output?.substring(0, 100))
 
-    // 更新工具消息
-    const toolMsg = messages.value.find(m => m.id === `tool-${toolCallId}`)
-    if (toolMsg && toolMsg.toolCall) {
-      toolMsg.toolCall.header.status = 'completed'
-      toolMsg.toolCall.body = {
-        ...toolMsg.toolCall.body,
-        status: 'completed',
-        output,
-        durationMs
+    // 更新工具消息 - 使用响应式方式
+    const toolMsgIndex = messages.value.findIndex(m => m.id === `tool-${toolCallId}`)
+    if (toolMsgIndex !== -1 && messages.value[toolMsgIndex].toolCall) {
+      const toolMsg = messages.value[toolMsgIndex]
+      // 使用 Vue 的响应式更新方式：替换整个对象
+      messages.value[toolMsgIndex] = {
+        ...toolMsg,
+        toolCall: {
+          ...toolMsg.toolCall,
+          header: {
+            ...toolMsg.toolCall.header,
+            status: 'completed'
+          },
+          body: {
+            ...toolMsg.toolCall.body,
+            status: 'completed',
+            output,
+            durationMs
+          }
+        }
       }
+      console.log('[ChatStore] 工具消息已更新:', toolCallId)
+    } else {
+      console.warn('[ChatStore] 未找到工具消息:', toolCallId)
     }
 
     // 移除 pending 记录
@@ -652,18 +668,32 @@ export const useChatStore = defineStore('chat', () => {
    * 处理工具调用失败
    */
   function handleToolCallFailed(toolCallId: string, toolName: string, error: string, durationMs?: number) {
-    console.log('[ChatStore] 工具失败:', toolName, toolCallId)
+    console.log('[ChatStore] 工具失败:', toolName, toolCallId, 'error:', error)
 
-    // 更新工具消息
-    const toolMsg = messages.value.find(m => m.id === `tool-${toolCallId}`)
-    if (toolMsg && toolMsg.toolCall) {
-      toolMsg.toolCall.header.status = 'failed'
-      toolMsg.toolCall.body = {
-        ...toolMsg.toolCall.body,
-        status: 'failed',
-        error,
-        durationMs
+    // 更新工具消息 - 使用响应式方式
+    const toolMsgIndex = messages.value.findIndex(m => m.id === `tool-${toolCallId}`)
+    if (toolMsgIndex !== -1 && messages.value[toolMsgIndex].toolCall) {
+      const toolMsg = messages.value[toolMsgIndex]
+      // 使用 Vue 的响应式更新方式：替换整个对象
+      messages.value[toolMsgIndex] = {
+        ...toolMsg,
+        toolCall: {
+          ...toolMsg.toolCall,
+          header: {
+            ...toolMsg.toolCall.header,
+            status: 'failed'
+          },
+          body: {
+            ...toolMsg.toolCall.body,
+            status: 'failed',
+            error,
+            durationMs
+          }
+        }
       }
+      console.log('[ChatStore] 工具消息已更新:', toolCallId)
+    } else {
+      console.warn('[ChatStore] 未找到工具消息:', toolCallId)
     }
 
     // 移除 pending 记录
