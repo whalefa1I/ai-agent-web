@@ -7,6 +7,7 @@ import './styles/main.css'
 // 页面组件
 import ChatPage from './pages/ChatPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
+import TestPage from './pages/TestPage.vue'
 
 // 路由配置
 const router = createRouter({
@@ -14,7 +15,8 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/chat' },
     { path: '/chat', component: ChatPage },
-    { path: '/settings', component: SettingsPage }
+    { path: '/settings', component: SettingsPage },
+    { path: '/test', component: TestPage }
   ]
 })
 

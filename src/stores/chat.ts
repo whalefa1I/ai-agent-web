@@ -292,7 +292,8 @@ export const useChatStore = defineStore('chat', () => {
         id: m.id,
         type: 'USER' as const,
         content: m.body.content,
-        timestamp: new Date(timelineMs(m)).toISOString()
+        timestamp: new Date(timelineMs(m)).toISOString(),
+        metadata: { seq: m.seq }  // 保存 seq 用于排序
       })
     })
 
@@ -303,7 +304,8 @@ export const useChatStore = defineStore('chat', () => {
         type: 'TOOL' as const,
         content: '',  // 工具调用的内容在 toolCall 字段中
         timestamp: new Date(timelineMs(tc)).toISOString(),
-        toolCall: tc
+        toolCall: tc,
+        metadata: { seq: tc.seq }  // 保存 seq 用于排序
       })
 
       const processText = summarizeToolProgress(tc)
@@ -312,7 +314,8 @@ export const useChatStore = defineStore('chat', () => {
           id: `tool-progress-${tc.id}-${tc.bodyVersion}`,
           type: 'SYSTEM' as const,
           content: processText,
-          timestamp: new Date(timelineMs(tc)).toISOString()
+          timestamp: new Date(timelineMs(tc)).toISOString(),
+          metadata: { seq: tc.seq }  // 工具进度消息使用相同的 seq
         })
       }
     })
@@ -324,7 +327,8 @@ export const useChatStore = defineStore('chat', () => {
         type: 'TODO' as const,
         content: '',  // 待办事项的内容在 todo 字段中
         timestamp: new Date(timelineMs(todo)).toISOString(),
-        todo: todo
+        todo: todo,
+        metadata: { seq: todo.seq }  // 保存 seq 用于排序
       })
     })
 
@@ -335,17 +339,17 @@ export const useChatStore = defineStore('chat', () => {
         type: 'ASSISTANT' as const,
         subtype: String((m.header as any)?.subtype || 'assistant-message'),
         content: m.body.content,
-        metadata:
-          m.body && typeof m.body === 'object' && (m.body as any).metadata
-            ? ((m.body as any).metadata as Record<string, unknown>)
-            : undefined,
+        metadata: {
+          seq: m.seq,  // 保存 seq 用于排序
+          ...((m.body as any)?.metadata ? ((m.body as any).metadata as Record<string, unknown>) : {})
+        },
         timestamp: new Date(timelineMs(m)).toISOString(),
         inputTokens: typeof (m.body as any).inputTokens === 'number' ? (m.body as any).inputTokens : undefined,
         outputTokens: typeof (m.body as any).outputTokens === 'number' ? (m.body as any).outputTokens : undefined
       })
     })
 
-    // 添加 thinking 消息（仅保留有内容的推理文本，避免空 thinking 卡住“思考中...”）
+    // 添加 thinking 消息（仅保留有内容的推理文本，避免空 thinking 卡住”思考中...”）
     thinkingMessages.forEach(m => {
       const content = String(m.body.content || '').trim()
       if (!content) return
@@ -353,23 +357,38 @@ export const useChatStore = defineStore('chat', () => {
         id: m.id,
         type: 'THINKING' as const,
         content,
-        timestamp: new Date(timelineMs(m)).toISOString()
+        timestamp: new Date(timelineMs(m)).toISOString(),
+        metadata: { seq: m.seq }  // 保存 seq 用于排序
       })
     })
 
-    // 按时间线排序：以 max(createdAt, updatedAt) 为主（流式助手占位需用 updatedAt）。
-    // 仅在时间戳完全相同（同毫秒）时用类型作 tie-break：USER → TOOL → TODO → THINKING → ASSISTANT
+    // 按 seq 排序：使用 artifact 的全局递增序列号作为主要排序依据
+    // seq 字段是后端为每个 artifact 分配的唯一递增序号，可以精确反映消息的先后顺序
+    // 仅在 seq 缺失时用时间戳作为后备方案
     const typePriority: Record<string, number> = {
       USER: 0,
       TOOL: 1,
       TODO: 2,
       THINKING: 3,
-      ASSISTANT: 4
+      ASSISTANT: 4,
+      SYSTEM: 5
     }
     allMessages.sort((a, b) => {
+      // 优先使用 seq 排序（所有消息都应该有 seq）
+      const seqA = (a.metadata?.seq ?? a.toolCall?.seq ?? a.todo?.seq) as number | undefined
+      const seqB = (b.metadata?.seq ?? b.toolCall?.seq ?? b.todo?.seq) as number | undefined
+
+      // 如果都有 seq，优先用 seq 排序
+      if (seqA != null && seqB != null && seqA !== seqB) {
+        return seqA - seqB
+      }
+
+      // seq 缺失或相同时，用时间戳排序
       const timeA = new Date(a.timestamp).getTime()
       const timeB = new Date(b.timestamp).getTime()
       if (timeA !== timeB) return timeA - timeB
+
+      // 时间戳也相同时，用类型优先级作为最后的 tie-break
       return (typePriority[a.type] ?? 9) - (typePriority[b.type] ?? 9)
     })
 

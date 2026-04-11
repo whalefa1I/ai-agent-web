@@ -13,7 +13,8 @@
     "build:web": "vite build --mode web",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "test:ws": "node test-ws-stream.js"
   },
   "dependencies": {
     "vue": "^3.5.0",
