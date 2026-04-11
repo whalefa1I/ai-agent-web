@@ -84,6 +84,11 @@ export const useChatStore = defineStore('chat', () => {
         handleTextDelta(delta)
       },
 
+      // Reasoning/thinking 增量（流式输出）
+      reasoningDelta: (delta: string) => {
+        handleReasoningDelta(delta)
+      },
+
       // 工具调用开始
       toolCallStart: (toolCallId: string, toolName: string, input?: Record<string, any>) => {
         handleToolCallStart(toolCallId, toolName, input)
@@ -612,6 +617,36 @@ export const useChatStore = defineStore('chat', () => {
     // 累加内容
     currentResponseContent.value += delta
     assistantMsg.content = currentResponseContent.value
+  }
+
+  /**
+   * 处理 reasoning/thinking 增量（流式输出）
+   */
+  function handleReasoningDelta(delta: string) {
+    console.log('[ChatStore] 收到 reasoning 增量:', delta.substring(0, 50))
+
+    // 清除本地占位的 thinking 消息
+    messages.value = messages.value.filter(m =>
+      !(m.metadata?.source === 'local-optimistic' && m.subtype === 'assistant-wait-message')
+    )
+
+    // 查找或创建 thinking 消息
+    let thinkingMsg = messages.value.find(m =>
+      m.type === 'THINKING'
+    )
+
+    if (!thinkingMsg) {
+      thinkingMsg = {
+        id: `thinking-${Date.now()}`,
+        type: 'THINKING',
+        content: '',
+        timestamp: new Date().toISOString()
+      }
+      messages.value.push(thinkingMsg)
+    }
+
+    // 累加 reasoning 内容
+    thinkingMsg.content = (thinkingMsg.content || '') + delta
   }
 
   /**

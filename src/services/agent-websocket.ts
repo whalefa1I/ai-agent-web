@@ -11,6 +11,7 @@ import type {
   PermissionResponseMessage,
   ToolCallMessage,
   TextDeltaMessage,
+  ReasoningDeltaMessage,
   ResponseCompleteMessage,
   ResponseStartMessage,
   ErrorMessage,
@@ -71,6 +72,7 @@ export class AgentWebSocketClient {
   private stateListeners: Set<(state: AgentWebSocketStateInfo) => void> = new Set()
   private messageListeners: {
     textDelta?: (delta: string) => void
+    reasoningDelta?: (delta: string) => void
     toolCallStart?: (toolCallId: string, toolName: string, input?: Record<string, any>) => void
     toolCallComplete?: (toolCallId: string, toolName: string, output: string, durationMs?: number) => void
     toolCallFailed?: (toolCallId: string, toolName: string, error: string, durationMs?: number) => void
@@ -244,6 +246,12 @@ export class AgentWebSocketClient {
         case 'TEXT_DELTA': {
           const delta = msg as TextDeltaMessage
           this.messageListeners.textDelta?.(delta.delta)
+          break
+        }
+
+        case 'REASONING_DELTA': {
+          const reasoning = msg as ReasoningDeltaMessage
+          this.messageListeners.reasoningDelta?.(reasoning.delta)
           break
         }
 

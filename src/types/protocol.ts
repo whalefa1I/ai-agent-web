@@ -33,6 +33,7 @@ export type ServerMessageType =
   | 'CONNECTED'
   | 'RESPONSE_START'
   | 'TEXT_DELTA'
+  | 'REASONING_DELTA'
   | 'TOOL_CALL'
   | 'PERMISSION_REQUEST'
   | 'RESPONSE_COMPLETE'
@@ -86,6 +87,12 @@ export interface ResponseStartMessage extends ServerMessage {
 // 文本增量
 export interface TextDeltaMessage extends ServerMessage {
   type: 'TEXT_DELTA'
+  delta: string
+}
+
+// Reasoning/thinking 增量
+export interface ReasoningDeltaMessage extends ServerMessage {
+  type: 'REASONING_DELTA'
   delta: string
 }
 
