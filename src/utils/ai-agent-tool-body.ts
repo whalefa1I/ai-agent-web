@@ -44,12 +44,16 @@ export function resolveTaskMetadataFromToolBody(
 ): Record<string, unknown> | undefined {
   if (!body) return undefined
 
+  console.log('[resolveTaskMetadataFromToolBody] input body:', body)
+
   const looksLikeTaskMeta = (m: Record<string, unknown>): boolean =>
     (Array.isArray(m.tasks) && m.tasks.length >= 0) ||
     (m.task !== undefined && m.task !== null && typeof m.task === 'object' && !Array.isArray(m.task))
 
   const direct = body.metadata
+  console.log('[resolveTaskMetadataFromToolBody] direct metadata:', direct)
   if (isPlainObject(direct) && looksLikeTaskMeta(direct)) {
+    console.log('[resolveTaskMetadataFromToolBody] returning direct metadata')
     return direct
   }
 
@@ -74,6 +78,7 @@ export function resolveTaskMetadataFromToolBody(
   ] as const
   for (const k of nestedKeys) {
     const v = body[k]
+    console.log(`[resolveTaskMetadataFromToolBody] checking nested key: ${k}`, v)
     if (!isPlainObject(v)) continue
     const inner = v.metadata
     if (isPlainObject(inner) && looksLikeTaskMeta(inner)) return inner
@@ -81,6 +86,7 @@ export function resolveTaskMetadataFromToolBody(
     if (lifted) return lifted
   }
 
+  console.log('[resolveTaskMetadataFromToolBody] checking body directly for tasks/task')
   return liftTasksFrom(body)
 }
 

@@ -123,8 +123,10 @@ const panelTitle = computed(() => {
 /** 与 demo.k8s.agent.tools.local.planning.TaskTools + artifact body.metadata 对齐 */
 const todos = computed((): AiAgentTaskRow[] => {
   const body = props.toolCall.body as Record<string, unknown> | null | undefined
+  console.log('[TaskToolView] raw body:', body)
   if (!body) return []
   let rows = extractTaskRowsFromAiAgentToolBody(body)
+  console.log('[TaskToolView] extracted rows:', rows)
   const input = body.input as Record<string, unknown> | undefined
   if (rows.length === 1 && input && typeof input.description === 'string' && input.description.trim()) {
     const r = rows[0]
