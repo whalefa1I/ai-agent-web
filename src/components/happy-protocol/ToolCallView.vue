@@ -77,7 +77,9 @@ const isExpanded = ref(props.defaultExpanded);
 // 判断是否是 Task 工具
 const isTaskTool = computed(() => {
   const toolName = props.tool.name;
-  return ['TaskCreate', 'TaskList', 'TaskGet', 'TaskUpdate', 'TaskStop', 'TaskOutput'].includes(toolName);
+  const isTask = ['TaskCreate', 'TaskList', 'TaskGet', 'TaskUpdate', 'TaskStop', 'TaskOutput'].includes(toolName);
+  console.log('[ToolCallView] checking tool:', toolName, 'isTaskTool:', isTask, 'full tool props:', props.tool)
+  return isTask
 });
 
 // 获取工具定义
